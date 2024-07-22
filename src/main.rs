@@ -2,6 +2,7 @@ use image::{ImageBuffer, Rgb};
 use rand::Rng;
 
 use std::env;
+use std::path::Path;
 use std::sync::Arc;
 
 pub mod camera;
@@ -67,8 +68,17 @@ fn main() {
 
     // render
     let aspect_ratio: f64 = 16_f64 / 9_f64;
-    
     let camera: Camera = Camera::new(aspect_ratio, resolution, camera_samples);
     let img: ImageBuffer<Rgb<u16>, Vec<u16>> = camera.render(&world);
-    let _ = img.save("image.png").unwrap_or(());
+
+    let img_name = format!(
+        "out/{:.prec$}_{1}_{2}.png", 
+        aspect_ratio, 
+        resolution, 
+        camera_samples,
+        prec = 2,
+    );
+    let path = Path::new(&img_name);
+
+    let _ = img.save(path).unwrap_or(());
 }
