@@ -10,6 +10,7 @@ use crate::hittables::hittable::{HitRecord, Hittable};
 use crate::random_double;
 
 pub struct Camera {
+    #[allow(dead_code)] // 'aspect_ratio' unused
     aspect_ratio: f64,
     image_width: u32,
     image_height: u32,
@@ -64,7 +65,7 @@ impl Camera {
 
         let pixel_samples_scale: f64 = 1_f64 / samples as f64;
 
-        //camera
+        // camera
         // Viewport widths less than one are ok since they are real valued.
         let focal_length = 1_f64;
         let viewport_height = 2_f64;

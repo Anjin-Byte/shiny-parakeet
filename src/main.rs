@@ -4,6 +4,7 @@ use rand::Rng;
 use std::env;
 use std::path::Path;
 use std::sync::Arc;
+use std::f64::consts::PI;
 
 pub mod camera;
 pub mod geometry;
@@ -15,8 +16,6 @@ use crate::geometry::vec3::Point3;
 
 use crate::hittables::sphere::Sphere;
 use crate::hittables::hittable_list::HittableList;
-
-const PI: f64 = 3.1415926535897932385;
 
 fn degrees_to_radians(degrees: f64) -> f64 {
     degrees * PI / 180_f64
