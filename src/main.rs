@@ -1,7 +1,7 @@
 use image::{ImageBuffer, Rgb};
 use rand::Rng;
 
-use std::env;
+use std::{env, fs};
 use std::path::Path;
 use std::f64::consts::PI;
 
@@ -48,7 +48,7 @@ fn main() {
         }
     }
 
-    let mut camera_samples: u32 = 128;
+    let mut camera_samples: u32 = 64;
     if let Some(arg) = args.get(2) {
         match arg.parse::<u32>() {
             Ok(parsed_sample_rate) => camera_samples = parsed_sample_rate,
@@ -88,18 +88,25 @@ fn main() {
         Box::new(material_right)
     )));
 
-    let aspect_ratio: f64 = 16_f64 / 16_f64;
+    let aspect_ratio: f64 = 16_f64 / 9_f64;
     let camera: Camera = Camera::new(aspect_ratio, resolution, camera_samples);
     let img: ImageBuffer<Rgb<u16>, Vec<u16>> = camera.render(&world);
 
     let img_name = format!(
-        "out/{1}/{:.prec$}_{1}_{2}.png", 
+        "out/{1}/{0:.prec$}_{2}.png", 
         aspect_ratio, 
         resolution, 
         camera_samples,
         prec = 2,
     );
     let path = Path::new(&img_name);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).expect("Failed to create directories");
+    }
 
-    let _ = img.save(path).unwrap_or(());
+    if let Err(e) = img.save(&img_name) {
+        eprintln!("Failed to save image: {}", e);
+    } else {
+        println!("Image successfully saved to: {:#?}", path);
+    }
 }
