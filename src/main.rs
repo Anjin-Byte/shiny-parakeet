@@ -38,7 +38,7 @@ fn random_double_range(min: f64, max: f64) -> f64 {
 fn main() {
     let args: Vec<String> = env::args().collect();
 
-    let mut resolution: u32 = 128;
+    let mut resolution: u32 = 400;
     if let Some(arg) = args.get(1) {
         match arg.parse::<u32>() {
             Ok(parsed_res) => resolution = parsed_res,
@@ -48,7 +48,7 @@ fn main() {
         }
     }
 
-    let mut camera_samples: u32 = 64;
+    let mut camera_samples: u32 = 100;
     if let Some(arg) = args.get(2) {
         match arg.parse::<u32>() {
             Ok(parsed_sample_rate) => camera_samples = parsed_sample_rate,
@@ -60,7 +60,7 @@ fn main() {
 
     let material_ground: Lambertian = Lambertian::new(Color::new(0.8, 0.8, 0_f64));
     let material_center: Lambertian = Lambertian::new(Color::new(0.1, 0.2, 0.5));
-
+    
     let material_left: Metal = Metal::new(Color::new(0.8, 0.8, 0.8));
     let material_right: Metal = Metal::new(Color::new(0.8, 0.6, 0.2));
 
