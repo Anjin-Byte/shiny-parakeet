@@ -61,6 +61,10 @@ impl Vec3 {
         }
     }
 
+    pub fn reflect(v: &Vec3, n: &Vec3) -> Vec3 {
+        *v - 2_f64 * Self::dot(v, n) * *n
+    }
+
     pub fn random_unit_vector() -> Vec3 {
         Self::unit_vector(Self::random_in_unit_sphere())
     }
@@ -86,6 +90,11 @@ impl Vec3 {
         self.e[1] * self.e[1] + 
         self.e[2] * self.e[2]
     } 
+
+    pub fn near_zero(&self) -> bool {
+        let s: f64 = 1e-8;
+        (f64::abs(self.e[0]) < s) && (f64::abs(self.e[1]) < s) && (f64::abs(self.e[2]) < s)
+    }
 
     pub fn dot(lhs: &Vec3, rhs: &Vec3) -> f64 {
         lhs.e[0] * rhs.e[0] +

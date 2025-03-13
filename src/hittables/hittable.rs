@@ -1,11 +1,13 @@
-use crate::geometry::vec3::{Vec3, Point3};
+use crate::geometry::vec3::{Point3, Vec3};
 use crate::geometry::ray::Ray;
 use crate::geometry::interval::Interval;
+use crate::material::lambertian::Lambertian;
+use crate::material::material::Material;
 
-#[derive(Clone, Copy)]
 pub struct HitRecord {
     pub p: Point3,
     pub normal: Vec3,
+    pub mat: Box<dyn Material>,
     pub t: f64,
     pub front_face: bool,
 }
@@ -14,16 +16,24 @@ impl HitRecord {
     pub fn new(
         p: Point3, 
         normal: Vec3, 
+        mat: Box<dyn Material>,
         t: f64, 
         front_face: bool
     ) -> Self {
-        Self { p, normal, t, front_face }
+        Self { 
+            p, 
+            normal, 
+            mat, 
+            t, 
+            front_face 
+        }
     }
 
     pub(crate) fn default() -> Self {
         Self {
             p: Point3::new(0_f64, 0_f64, 0_f64),
             normal: Vec3::new(0_f64, 0_f64, 0_f64),
+            mat: Box::new(Lambertian::default()),
             t: 0_f64,
             front_face: false,
         }

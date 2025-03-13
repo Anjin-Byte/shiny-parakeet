@@ -20,6 +20,7 @@ pub struct Camera {
     pixel_delta_v: Vec3,
     samples_per_pixel: u32,
     pixel_samples_scale: f64,
+    max_depth: u32,
 }
 
 impl Camera {
@@ -27,22 +28,33 @@ impl Camera {
         Self::init(aspect_ratio, image_width, samples)
     }
 
-    pub(crate) fn render<T: Hittable>(&self, world: &T) -> ImageBuffer<Rgb<u16>, Vec<u16>> {
-        // Render
+    fn linear_to_gamma(linear_component: f64) -> f64 {
+        if linear_component > 0_f64 {
+            return f64::sqrt(linear_component);
+        }
+
+        0_f64
+    }
+
+    pub(crate) fn render(&self, world: &dyn Hittable) -> ImageBuffer<Rgb<u16>, Vec<u16>> {
         let bar = ProgressBar::new(self.image_width as u64 * self.image_height as u64);
         let img = ImageBuffer::from_fn(self.image_width, self.image_height, |i, j| {
     
             let mut pixel_color = Color::default();
             for _ in 0..self.samples_per_pixel {
                 let r: Ray = self.get_ray(i, j);
-                pixel_color += Self::ray_color(&r, world);
+                pixel_color += Self::ray_color(&r, self.max_depth, world);
             }
             pixel_color = pixel_color * self.pixel_samples_scale;
 
+            let r_gamma: f64 = Self::linear_to_gamma(pixel_color.x());
+            let g_gamma: f64 = Self::linear_to_gamma(pixel_color.y());
+            let b_gamma: f64 = Self::linear_to_gamma(pixel_color.z());
+
             let intensity = Interval::new(0_f64, 0.999);
-            let r: u16 = (u16::MAX as f64 * intensity.clamp(pixel_color.x())) as u16;
-            let g: u16 = (u16::MAX as f64 * intensity.clamp(pixel_color.y())) as u16;
-            let b: u16 = (u16::MAX as f64 * intensity.clamp(pixel_color.z())) as u16;
+            let r: u16 = (u16::MAX as f64 * intensity.clamp(r_gamma)) as u16;
+            let g: u16 = (u16::MAX as f64 * intensity.clamp(g_gamma)) as u16;
+            let b: u16 = (u16::MAX as f64 * intensity.clamp(b_gamma)) as u16;
 
             bar.inc(1);
             image::Rgb([r, g, b])
@@ -85,6 +97,8 @@ impl Camera {
         let viewport_upper_left = camera_to_viewport_vec - (0.5 * viewport_u) - (0.5 * viewport_v);
         let pixel_00_loc = viewport_upper_left + 0.5 * (pixel_delta_u + pixel_delta_v);
 
+        let max_depth: u32 = 50;
+
         Self {
             aspect_ratio,
             image_width,
@@ -95,6 +109,7 @@ impl Camera {
             pixel_delta_v,
             samples_per_pixel: samples,
             pixel_samples_scale,
+            max_depth,
         }
     }
 
@@ -114,11 +129,21 @@ impl Camera {
         Vec3::new(random_double() - 0.5, random_double() - 0.5, 0_f64)
     }
 
-    fn ray_color<T: Hittable>(r: &Ray, world: &T) -> Color {
+    fn ray_color(r: &Ray, depth: u32, world: &dyn Hittable) -> Color {
+        if depth <= 0 {
+            return Color::default();
+        }
+
         let mut rec: HitRecord = HitRecord::default();
-        if world.hit(&r, &Interval::new(0_f64, f64::INFINITY), &mut rec) {
-            let direction: Vec3 = Vec3::random_on_hemisphere(&rec.normal);
-            return 0.5 * Self::ray_color(&Ray::new(rec.p, direction), world)
+
+        if world.hit(&r, &Interval::new(0.001, f64::INFINITY), &mut rec) {
+            let mut scattered: Ray = Ray::new(Point3::default(), Vec3::default());
+            let mut attenuation: Color = Color::default();
+
+            if rec.mat.scatter(r, &rec, &mut attenuation, &mut scattered) {
+                return attenuation * Self::ray_color(&scattered, depth - 1, world);
+            }
+            return Color::default();
         }
 
         let unit_direction = Vec3::unit_vector(r.direction);
