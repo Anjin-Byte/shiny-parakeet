@@ -38,7 +38,7 @@ pub fn init(sender: Sender<RenderCommand>, db: DoubleBufferReader<ColorImage>, a
 
 impl App for MyApp {
     fn update(&mut self, ctx: &egui::Context, frame: &mut Frame) {
-        ctx.request_repaint_after(std::time::Duration::from_millis(16));
+        std::thread::yield_now();
         let _ = frame;
         println!("Update");
         let rendered_frame = self.db_reader.read().clone();

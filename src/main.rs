@@ -154,15 +154,20 @@ fn main() {
         }
 
         let mut paused: bool = false;
+        let mut accumulator: ColorImage = ColorImage::new(
+            [camera.image_width as usize, camera.image_height as usize],
+            Color32::BLACK,
+        );
+
         loop {
-            let mut current_render = ColorImage::new([camera.image_width as usize, camera.image_height as usize], Color32::BLACK);
+            //let mut current_render = ColorImage::new([camera.image_width as usize, camera.image_height as usize], Color32::BLACK);
             if !paused {
                 //println!("Rendering");
                 let new_frame: ColorImage = camera.render_step_egui(&world);
-                current_render = combine_images(&current_render, &new_frame);
+                accumulator = combine_images(&accumulator, &new_frame);
   
                 writer.write(|back| {
-                    *back = current_render;
+                    *back = accumulator.clone();
                 });
                 writer.swap();
                 println!("Rendered new frame")
