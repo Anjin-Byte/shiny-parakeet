@@ -1,3 +1,6 @@
+use std::u8;
+
+use eframe::egui::{Color32, ColorImage};
 use image::{ImageBuffer, Rgb};
 use indicatif::ProgressBar;
 
@@ -12,8 +15,8 @@ use crate::random_double;
 pub struct Camera {
     #[allow(dead_code)] // 'aspect_ratio' unused
     aspect_ratio: f64,
-    image_width: u32,
-    image_height: u32,
+    pub image_width: u32,
+    pub image_height: u32,
     center: Point3,
     pixel_00_loc: Point3,
     pixel_delta_u: Vec3,
@@ -36,6 +39,64 @@ impl Camera {
         0_f64
     }
 
+    pub fn egui_image_from_fn<F>(width: u32, height: u32, mut f: F) -> ColorImage
+    where
+        F: FnMut(u32, u32) -> Color32,
+    {
+        let mut img = ColorImage::new([width as usize, height as usize], Color32::WHITE);
+        for (i, p) in img.pixels.iter_mut().enumerate() {
+            let x: u32 = i as u32 % width;
+            let y: u32 = i as u32 / width;
+
+            *p = f(x, y);
+        }
+        img
+    }
+
+    pub(crate) fn render_step_egui(&self, world: &dyn Hittable) -> ColorImage {
+        let img = Self::egui_image_from_fn(self.image_width, self.image_height, |i, j| {
+            let r: Ray = self.get_ray(i, j);
+            let pixel_color = Self::ray_color(&r, self.max_depth, world);
+
+            let r_gamma: f64 = Self::linear_to_gamma(pixel_color.x());
+            let g_gamma: f64 = Self::linear_to_gamma(pixel_color.y());
+            let b_gamma: f64 = Self::linear_to_gamma(pixel_color.z());
+
+            let intensity = Interval::new(0_f64, 0.999);
+            let r: u8 = (u8::MAX as f64 * intensity.clamp(r_gamma)) as u8;
+            let g: u8 = (u8::MAX as f64 * intensity.clamp(g_gamma)) as u8;
+            let b: u8 = (u8::MAX as f64 * intensity.clamp(b_gamma)) as u8;
+
+            Color32::from_rgba_unmultiplied(r, g, b, u8::MAX)
+        });
+
+        img
+    }
+
+    /*     
+    pub(crate) fn render_step(&self, world: &dyn Hittable) -> ImageBuffer<Rgb<u16>, Vec<u16>> {
+        let img = ImageBuffer::from_fn(self.image_width, self.image_height, |i, j| {
+            //let mut pixel_color = Color::default();
+            let r: Ray = self.get_ray(i, j);
+            let pixel_color = Self::ray_color(&r, self.max_depth, world);
+            
+            //pixel_color = pixel_color * self.pixel_samples_scale;
+
+            let r_gamma: f64 = Self::linear_to_gamma(pixel_color.x());
+            let g_gamma: f64 = Self::linear_to_gamma(pixel_color.y());
+            let b_gamma: f64 = Self::linear_to_gamma(pixel_color.z());
+
+            let intensity = Interval::new(0_f64, 0.999);
+            let r: u16 = (u16::MAX as f64 * intensity.clamp(r_gamma)) as u16;
+            let g: u16 = (u16::MAX as f64 * intensity.clamp(g_gamma)) as u16;
+            let b: u16 = (u16::MAX as f64 * intensity.clamp(b_gamma)) as u16;
+
+            image::Rgb([r, g, b])
+        });
+
+        img
+    }
+    */
     pub(crate) fn render(&self, world: &dyn Hittable) -> ImageBuffer<Rgb<u16>, Vec<u16>> {
         let bar = ProgressBar::new(self.image_width as u64 * self.image_height as u64);
         let img = ImageBuffer::from_fn(self.image_width, self.image_height, |i, j| {
