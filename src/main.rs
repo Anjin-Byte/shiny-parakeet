@@ -1,9 +1,6 @@
 use eframe::egui::{Color32, ColorImage};
-use image::{ImageBuffer, Rgb};
 use rand::Rng;
 
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
 use std::{env, fs, thread, u8};
 use std::sync::mpsc::channel;
 use std::path::Path;
@@ -160,17 +157,14 @@ fn main() {
         );
 
         loop {
-            //let mut current_render = ColorImage::new([camera.image_width as usize, camera.image_height as usize], Color32::BLACK);
             if !paused {
-                //println!("Rendering");
                 let new_frame: ColorImage = camera.render_step_egui(&world);
                 accumulator = combine_images(&accumulator, &new_frame);
-  
+                
                 writer.write(|back| {
                     *back = accumulator.clone();
                 });
                 writer.swap();
-                println!("Rendered new frame")
             }
             
             while let Ok(cmd) = rx.try_recv() {
@@ -191,8 +185,6 @@ fn main() {
                 }
             }
         }
-
-        println!("Thread 1 finished!");
     });
 
     if PROGRESSIVE_VIEWPORT { 
