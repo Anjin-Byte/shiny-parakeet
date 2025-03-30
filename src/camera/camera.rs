@@ -73,7 +73,7 @@ impl Camera {
         img
     }
 
-    /*     
+    /* render step returning 'image' crate ImageBuffer type
     pub(crate) fn render_step(&self, world: &dyn Hittable) -> ImageBuffer<Rgb<u16>, Vec<u16>> {
         let img = ImageBuffer::from_fn(self.image_width, self.image_height, |i, j| {
             //let mut pixel_color = Color::default();

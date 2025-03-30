@@ -1,6 +1,6 @@
-use std::{sync::{mpsc::Sender, Arc, Mutex}, thread, time::Duration};
+use std::sync::mpsc::Sender;
 
-use eframe::{egui::{self, ColorImage, TextureHandle}, App, Frame};
+use eframe::{egui::{self, ColorImage}, App, Frame};
 
 use super::{command::RenderCommand, double_buffer::DoubleBufferReader};
 
@@ -39,7 +39,7 @@ pub fn init(sender: Sender<RenderCommand>, db: DoubleBufferReader<ColorImage>, a
 impl App for MyApp {
     fn update(&mut self, ctx: &egui::Context, frame: &mut Frame) {
         let _ = frame;
-        println!("Update");
+        //println!("Update");
         let rendered_frame = self.db_reader.read().clone();
         let texture = ctx.load_texture("framebuffer",  rendered_frame, Default::default());
 
