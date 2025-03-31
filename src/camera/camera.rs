@@ -158,7 +158,7 @@ impl Camera {
         let viewport_upper_left = camera_to_viewport_vec - (0.5 * viewport_u) - (0.5 * viewport_v);
         let pixel_00_loc = viewport_upper_left + 0.5 * (pixel_delta_u + pixel_delta_v);
 
-        let max_depth: u32 = 50;
+        let max_depth: u32 = 100;
 
         Self {
             aspect_ratio,

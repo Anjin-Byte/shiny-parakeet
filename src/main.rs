@@ -21,6 +21,7 @@ use crate::hittables::hittable_list::HittableList;
 
 use crate::material::lambertian::Lambertian;
 use crate::material::metal::Metal;
+use crate::material::dielectric::Dielectric;
 
 use progressive_viewport::run;
 
@@ -82,10 +83,12 @@ fn main() {
         let camera: Camera = Camera::new(aspect_ratio, resolution, camera_samples);
     
         let material_ground: Lambertian = Lambertian::new(Color::new(0.8, 0.8, 0_f64));
+        //let material_ground_metal: Metal = Metal::new(Color::new(0.8, 0.8, 0.8), 0_f64);
         let material_center: Lambertian = Lambertian::new(Color::new(0.1, 0.2, 0.5));
         
-        let material_left: Metal = Metal::new(Color::new(0.8, 0.8, 0.8));
-        let material_right: Metal = Metal::new(Color::new(0.8, 0.6, 0.2));
+        let material_left: Dielectric = Dielectric::new(1.50);
+        let material_bubble: Dielectric = Dielectric::new(1_f64 / 1.50);
+        let material_right: Metal = Metal::new(Color::new(0.8, 0.6, 0.2), 0_f64);
     
         let mut world: HittableList = HittableList::new();
         
@@ -105,6 +108,12 @@ fn main() {
             0.5,
             Box::new(material_left)
         )));
+        world.add(Box::new(Sphere::new(
+            Point3::new(-1_f64, 0_f64, -1_f64),
+            0.4,
+            Box::new(material_bubble)
+        )));
+
         world.add(Box::new(Sphere::new(
             Point3::new(1_f64, 0_f64, -1_f64),
             0.5,

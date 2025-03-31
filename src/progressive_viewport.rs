@@ -49,8 +49,8 @@ pub fn run(resolution: u32, camera_samples: u32) {
         let material_ground: Lambertian = Lambertian::new(Color::new(0.8, 0.8, 0_f64));
         let material_center: Lambertian = Lambertian::new(Color::new(0.1, 0.2, 0.5));
         
-        let material_left: Metal = Metal::new(Color::new(0.8, 0.8, 0.8));
-        let material_right: Metal = Metal::new(Color::new(0.8, 0.6, 0.2));
+        let material_left: Metal = Metal::new(Color::new(0.8, 0.8, 0.8), 0_f64);
+        let material_right: Metal = Metal::new(Color::new(0.8, 0.6, 0.2), 0_f64);
     
         let mut world: HittableList = HittableList::new();
         

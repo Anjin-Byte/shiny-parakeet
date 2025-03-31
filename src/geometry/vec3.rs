@@ -65,6 +65,23 @@ impl Vec3 {
         *v - 2_f64 * Self::dot(v, n) * *n
     }
 
+    pub fn refract(uv: &Vec3, normal: &Vec3, eta_over_eta_prime: f64) -> Vec3 {
+        let cos_theta: f64 = Self::dot(&-uv, normal).min(1_f64);
+        let r_out_perp: Vec3 = eta_over_eta_prime * (*uv + cos_theta * *normal);
+
+        let len_sq = r_out_perp.length_squared();
+        let under_sqrt = 1.0 - len_sq;
+        let r_out_parallel = if under_sqrt >= 0.0 {
+            -under_sqrt.sqrt() * *normal
+        } else {
+            // total internal reflection or numerical error: fallback to zero vector
+            // this is to address potential NaN return from f64::sqrt()
+            Vec3::default()
+        };
+
+        r_out_parallel + r_out_perp // ∥rout​∥2=∥rout⊥​∥2+∥rout∥​∥2
+    }
+
     pub fn random_unit_vector() -> Vec3 {
         Self::unit_vector(Self::random_in_unit_sphere())
     }
@@ -112,6 +129,22 @@ impl Vec3 {
 
     pub fn unit_vector(v: Vec3) -> Vec3 {
         (1_f64 / v.length()) * v
+    }
+}
+
+impl<'a> ops::Neg for &'a Vec3 {
+    type Output = Vec3;
+
+    fn neg(self) -> Vec3 {
+        Vec3::new(-self.e[0], -self.e[1], -self.e[2])
+    }
+}
+
+impl ops::Neg for Vec3 {
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
+        Vec3::new(-self.e[0], -self.e[1], -self.e[2])
     }
 }
 

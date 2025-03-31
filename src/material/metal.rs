@@ -5,18 +5,23 @@ use crate::material::material::Material;
 
 pub struct Metal {
     albedo: Color,
+    fuzz: f64,
 }
 
 impl Metal {
     pub fn default() -> Self {
         Self {
             albedo: Color::default(),
+            fuzz: 0_f64,
         }
     }
 
-    pub fn new(albedo: Color) -> Self {
+    pub fn new(albedo: Color, fuzz: f64) -> Self {
+        let fuzz: f64 = if fuzz < 1_f64 { fuzz } else { 1_f64 };
+
         Self {
             albedo,
+            fuzz,
         }
     }
 }
@@ -29,18 +34,19 @@ impl Material for Metal {
         attenuation: &mut Color, 
         scattered: &mut Ray
     ) -> bool {
-        let reflected = Vec3::reflect(&r_in.direction, &rec.normal);
-
+        let mut reflected = Vec3::reflect(&r_in.direction, &rec.normal);
+        reflected = Vec3::unit_vector(reflected) + (self.fuzz * Vec3::random_unit_vector());
         *scattered = Ray::new(rec.p, reflected);
         *attenuation = self.albedo;
 
-        true
+        Vec3::dot(&scattered.direction, &rec.normal) > 0_f64
     }
 
 
     fn clone_box(&self) -> Box<dyn Material> {
         Box::new(Self {
             albedo: self.albedo,
+            fuzz: self.fuzz,
         })
     }
 }
