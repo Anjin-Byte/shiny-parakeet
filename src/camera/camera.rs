@@ -10,7 +10,7 @@ use crate::geometry::interval::Interval;
 
 use crate::hittables::hittable::{HitRecord, Hittable};
 
-use crate::random_double;
+use crate::{degrees_to_radians, random_double};
 
 pub struct Camera {
     #[allow(dead_code)] // 'aspect_ratio' unused
@@ -24,11 +24,13 @@ pub struct Camera {
     samples_per_pixel: u32,
     pixel_samples_scale: f64,
     max_depth: u32,
+    #[allow(dead_code)] // 'vfov' unused
+    vfov: f64,
 }
 
 impl Camera {
-    pub(crate) fn new(aspect_ratio: f64, image_width: u32, samples: u32) -> Self {
-        Self::init(aspect_ratio, image_width, samples)
+    pub(crate) fn new(vfov: f64, aspect_ratio: f64, image_width: u32, samples: u32) -> Self {
+        Self::init(vfov, aspect_ratio, image_width, samples)
     }
 
     fn linear_to_gamma(linear_component: f64) -> f64 {
@@ -125,7 +127,7 @@ impl Camera {
         img
     }
 
-    fn init(aspect_ratio: f64, image_width: u32, samples: u32) -> Self {
+    fn init(vfov: f64, aspect_ratio: f64, image_width: u32, samples: u32) -> Self {
         // Calculate the image height, and ensure that it's at least 1.
         let image_height: u32 = {
             let height: u32 = (image_width as f64 / aspect_ratio) as u32;
@@ -141,7 +143,9 @@ impl Camera {
         // camera
         // Viewport widths less than one are ok since they are real valued.
         let focal_length = 1_f64;
-        let viewport_height = 2_f64;
+        let theta: f64 = degrees_to_radians(vfov);
+        let h: f64 = f64::tan(theta / 2_f64);
+        let viewport_height = 2_f64 * h * focal_length;
         let viewport_width = viewport_height * (image_width as f64 / image_height as f64);
         let camera_center = Point3::new(0_f64, 0_f64, 0_f64);
 
@@ -171,6 +175,7 @@ impl Camera {
             samples_per_pixel: samples,
             pixel_samples_scale,
             max_depth,
+            vfov,
         }
     }
 

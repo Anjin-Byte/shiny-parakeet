@@ -36,7 +36,8 @@ fn combine_images(img1: &ColorImage, img2: &ColorImage) -> ColorImage {
 
 pub fn run(resolution: u32, camera_samples: u32) {
     let aspect_ratio: f64 = 16_f64 / 9_f64;
-    let camera: Camera = Camera::new(aspect_ratio, resolution, camera_samples);
+    let vfov: f64 = 90_f64;
+    let camera: Camera = Camera::new(vfov, aspect_ratio, resolution, camera_samples);
 
     let (tx, rx) = channel::<RenderCommand>();
     let db = DoubleBuffer::new(

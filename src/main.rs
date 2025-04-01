@@ -80,7 +80,8 @@ fn main() {
 
     if ORIGINAL_RENDER_TO_PNG {
         let aspect_ratio: f64 = 16_f64 / 9_f64;
-        let camera: Camera = Camera::new(aspect_ratio, resolution, camera_samples);
+        let vfov: f64 = 100_f64;
+        let camera: Camera = Camera::new(vfov, aspect_ratio, resolution, camera_samples);
     
         let material_ground: Lambertian = Lambertian::new(Color::new(0.8, 0.8, 0_f64));
         //let material_ground_metal: Metal = Metal::new(Color::new(0.8, 0.8, 0.8), 0_f64);
