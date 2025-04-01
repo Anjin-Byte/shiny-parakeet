@@ -4,7 +4,7 @@ use std::{thread, u8};
 use std::sync::mpsc::channel;
 
 use crate::camera::camera::Camera;
-use crate::geometry::vec3::{Point3, Color};
+use crate::geometry::vec3::{Color, Point3, Vec3};
 
 use crate::hittables::sphere::Sphere;
 use crate::hittables::hittable_list::HittableList;
@@ -37,7 +37,15 @@ fn combine_images(img1: &ColorImage, img2: &ColorImage) -> ColorImage {
 pub fn run(resolution: u32, camera_samples: u32) {
     let aspect_ratio: f64 = 16_f64 / 9_f64;
     let vfov: f64 = 90_f64;
-    let camera: Camera = Camera::new(vfov, aspect_ratio, resolution, camera_samples);
+    let camera: Camera = Camera::new(
+        Point3::new(-2_f64, 2_f64, 1_f64),
+        Point3::new(0_f64, 0_f64, -1_f64),
+        Vec3::new(0_f64, 1_f64, 0_f64),
+        vfov, 
+        aspect_ratio, 
+        resolution, 
+        camera_samples
+    );
 
     let (tx, rx) = channel::<RenderCommand>();
     let db = DoubleBuffer::new(

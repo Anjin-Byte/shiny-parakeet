@@ -5,7 +5,7 @@ use image::{ImageBuffer, Rgb};
 use indicatif::ProgressBar;
 
 use crate::geometry::ray::Ray;
-use crate::geometry::vec3::{Color, Point3, Vec3};
+use crate::geometry::vec3::{self, Color, Point3, Vec3};
 use crate::geometry::interval::Interval;
 
 use crate::hittables::hittable::{HitRecord, Hittable};
@@ -26,11 +26,25 @@ pub struct Camera {
     max_depth: u32,
     #[allow(dead_code)] // 'vfov' unused
     vfov: f64,
+    lookfrom: Point3,
+    lookat: Point3,
+    vup: Vec3,
+    u: Vec3,
+    v: Vec3,
+    w: Vec3,
 }
 
 impl Camera {
-    pub(crate) fn new(vfov: f64, aspect_ratio: f64, image_width: u32, samples: u32) -> Self {
-        Self::init(vfov, aspect_ratio, image_width, samples)
+    pub(crate) fn new(
+        lookfrom: Point3,
+        lookat: Point3,
+        vup: Vec3,
+        vfov: f64, 
+        aspect_ratio: f64, 
+        image_width: u32, 
+        samples: u32
+    ) -> Self {
+        Self::init(lookfrom, lookat, vup, vfov, aspect_ratio, image_width, samples)
     }
 
     fn linear_to_gamma(linear_component: f64) -> f64 {
@@ -127,7 +141,15 @@ impl Camera {
         img
     }
 
-    fn init(vfov: f64, aspect_ratio: f64, image_width: u32, samples: u32) -> Self {
+    fn init(
+        lookfrom: Point3,
+        lookat: Point3,
+        vup: Vec3,
+        vfov: f64, 
+        aspect_ratio: f64, 
+        image_width: u32, 
+        samples: u32
+    ) -> Self {
         // Calculate the image height, and ensure that it's at least 1.
         let image_height: u32 = {
             let height: u32 = (image_width as f64 / aspect_ratio) as u32;
@@ -142,24 +164,33 @@ impl Camera {
 
         // camera
         // Viewport widths less than one are ok since they are real valued.
-        let focal_length = 1_f64;
+        //let lookfrom: Point3 = Point3::new(0_f64, 0_f64, 0_f64);
+        //let lookat: Point3 = Point3::new(0_f64, 0_f64, -1_f64);
+        //let vup: Vec3 = Vec3::new(0_f64, 1_f64, 0_f64);
+
+        let camera_center = lookfrom;
+        let focal_length = (lookfrom - lookat).length();
         let theta: f64 = degrees_to_radians(vfov);
         let h: f64 = f64::tan(theta / 2_f64);
         let viewport_height = 2_f64 * h * focal_length;
         let viewport_width = viewport_height * (image_width as f64 / image_height as f64);
-        let camera_center = Point3::new(0_f64, 0_f64, 0_f64);
+        
+        // Calculate the u,v,w unit basis vectors for the camera coordinate frame.
+        let w = Vec3::unit_vector(lookfrom - lookat);
+        let u = Vec3::unit_vector(Vec3::cross(&vup, &w));
+        let v = Vec3::cross(&w, &u);
 
         // Calculate the vectors across the horizontal and down the vertical viewport edges.
-        let viewport_u = Vec3::new(viewport_width, 0_f64, 0_f64);
-        let viewport_v = Vec3::new(0_f64, -1_f64 * viewport_height, 0_f64);
+        let viewport_u = viewport_width * u; // Vector across viewport horizontal edge
+        let viewport_v = viewport_height * -v; // Vector down viewport vertical edge
 
         // Calculate the horizontal and vertical delta vectors from pixel to pixel.
         let pixel_delta_u = viewport_u / image_width as f64;
         let pixel_delta_v = viewport_v / image_height as f64;
 
         // Calculate the location of the upper left pixel.
-        let camera_to_viewport_vec = camera_center - Vec3::new(0_f64, 0_f64, focal_length);
-        let viewport_upper_left = camera_to_viewport_vec - (0.5 * viewport_u) - (0.5 * viewport_v);
+        let viewport_upper_left = camera_center - (focal_length * w) - viewport_u / 2_f64 - viewport_v / 2_f64;
+        //let viewport_upper_left = camera_to_viewport_vec - (0.5 * viewport_u) - (0.5 * viewport_v);
         let pixel_00_loc = viewport_upper_left + 0.5 * (pixel_delta_u + pixel_delta_v);
 
         let max_depth: u32 = 100;
@@ -176,6 +207,12 @@ impl Camera {
             pixel_samples_scale,
             max_depth,
             vfov,
+            lookfrom,
+            lookat,
+            vup,
+            w,
+            u,
+            v,
         }
     }
 

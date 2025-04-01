@@ -1,3 +1,4 @@
+use geometry::vec3::Vec3;
 use image::{ImageBuffer, Rgb};
 use rand::Rng;
 
@@ -80,16 +81,24 @@ fn main() {
 
     if ORIGINAL_RENDER_TO_PNG {
         let aspect_ratio: f64 = 16_f64 / 9_f64;
-        let vfov: f64 = 100_f64;
-        let camera: Camera = Camera::new(vfov, aspect_ratio, resolution, camera_samples);
-    
-        let material_ground: Lambertian = Lambertian::new(Color::new(0.8, 0.8, 0_f64));
-        //let material_ground_metal: Metal = Metal::new(Color::new(0.8, 0.8, 0.8), 0_f64);
-        let material_center: Lambertian = Lambertian::new(Color::new(0.1, 0.2, 0.5));
-        
+        let vfov: f64 = 20_f64;
+        let camera: Camera = Camera::new(
+            Point3::new(-2_f64, 2_f64, 1_f64),
+            Point3::new(0_f64, 0_f64, -1_f64),
+            Vec3::new(0_f64, 1_f64, 0_f64),
+            vfov, 
+            aspect_ratio, 
+            resolution, 
+            camera_samples
+        );
+        // (94,187,161)
+        let material_ground: Lambertian = Lambertian::new(Color::new(0.419, 0.400, 0.776));
+        //let material_ground_metal: Metal = Metal::new(Color::new(0.419, 0.400, 0.776), 0_f64);
+        let material_center: Lambertian = Lambertian::new(Color::new(94.0/256.0, 187.0/256.0, 161.0/256.0));
+        //let material_center: Lambertian = Lambertian::new(Color::new(0.9, 0.9, 0.9));
         let material_left: Dielectric = Dielectric::new(1.50);
         let material_bubble: Dielectric = Dielectric::new(1_f64 / 1.50);
-        let material_right: Metal = Metal::new(Color::new(0.8, 0.6, 0.2), 0_f64);
+        let material_right: Metal = Metal::new(Color::new(0.6, 0.6, 0.7), 0.02);
     
         let mut world: HittableList = HittableList::new();
         
