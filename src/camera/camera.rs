@@ -5,7 +5,7 @@ use image::{ImageBuffer, Rgb};
 use indicatif::ProgressBar;
 
 use crate::geometry::ray::Ray;
-use crate::geometry::vec3::{self, Color, Point3, Vec3};
+use crate::geometry::vec3::{Color, Point3, Vec3};
 use crate::geometry::interval::Interval;
 
 use crate::hittables::hittable::{HitRecord, Hittable};
@@ -25,17 +25,23 @@ pub struct Camera {
     pixel_samples_scale: f64,
     max_depth: u32,
     #[allow(dead_code)] // 'vfov' unused
-    vfov: f64,
+    vfov: f64, 
     lookfrom: Point3,
     lookat: Point3,
     vup: Vec3,
     u: Vec3,
     v: Vec3,
     w: Vec3,
+    pub defocus_angle: f64,
+    pub focus_dist: f64,
+    defocus_disk_u: Vec3,
+    defocus_disk_v: Vec3,
 }
 
 impl Camera {
     pub(crate) fn new(
+        defocus_angle: f64,
+        focus_dist: f64,
         lookfrom: Point3,
         lookat: Point3,
         vup: Vec3,
@@ -44,7 +50,7 @@ impl Camera {
         image_width: u32, 
         samples: u32
     ) -> Self {
-        Self::init(lookfrom, lookat, vup, vfov, aspect_ratio, image_width, samples)
+        Self::init(defocus_angle, focus_dist, lookfrom, lookat, vup, vfov, aspect_ratio, image_width, samples)
     }
 
     fn linear_to_gamma(linear_component: f64) -> f64 {
@@ -142,6 +148,8 @@ impl Camera {
     }
 
     fn init(
+        defocus_angle: f64,
+        focus_dist: f64,
         lookfrom: Point3,
         lookat: Point3,
         vup: Vec3,
@@ -169,10 +177,10 @@ impl Camera {
         //let vup: Vec3 = Vec3::new(0_f64, 1_f64, 0_f64);
 
         let camera_center = lookfrom;
-        let focal_length = (lookfrom - lookat).length();
+        //let focal_length = (lookfrom - lookat).length();
         let theta: f64 = degrees_to_radians(vfov);
         let h: f64 = f64::tan(theta / 2_f64);
-        let viewport_height = 2_f64 * h * focal_length;
+        let viewport_height = 2_f64 * h * focus_dist;
         let viewport_width = viewport_height * (image_width as f64 / image_height as f64);
         
         // Calculate the u,v,w unit basis vectors for the camera coordinate frame.
@@ -189,9 +197,15 @@ impl Camera {
         let pixel_delta_v = viewport_v / image_height as f64;
 
         // Calculate the location of the upper left pixel.
-        let viewport_upper_left = camera_center - (focal_length * w) - viewport_u / 2_f64 - viewport_v / 2_f64;
+        let viewport_upper_left = camera_center - (focus_dist * w) 
+            - viewport_u / 2_f64 - viewport_v / 2_f64;
         //let viewport_upper_left = camera_to_viewport_vec - (0.5 * viewport_u) - (0.5 * viewport_v);
         let pixel_00_loc = viewport_upper_left + 0.5 * (pixel_delta_u + pixel_delta_v);
+        
+        // Calculate the camera defocus disk basis vectors.
+        let defocus_radius = focus_dist * (degrees_to_radians(defocus_angle / 2.0)).tan();
+        let defocus_disk_u = u * defocus_radius;
+        let defocus_disk_v = v * defocus_radius;
 
         let max_depth: u32 = 100;
 
@@ -213,16 +227,27 @@ impl Camera {
             w,
             u,
             v,
+            defocus_angle,
+            focus_dist,
+            defocus_disk_u,
+            defocus_disk_v,
         }
     }
 
     fn get_ray(&self, i: u32, j: u32) -> Ray {
+        // Construct a camera ray originating from the defocus disk and directed at a randomly
+        // sampled point around the pixel location i, j.
+        
         let offset: Vec3 = Self::sample_square();
         let pixel_sample: Vec3 = self.pixel_00_loc 
             + ((i as f64 + offset.x()) * self.pixel_delta_u) 
             + ((j as f64 + offset.y()) * self.pixel_delta_v);
 
-        let ray_origin: Vec3 = self.center;
+        let ray_origin = if self.defocus_angle <= 0.0 {
+            self.center
+        } else {
+            self.defocus_disk_sample()
+        };
         let ray_direction: Vec3 = pixel_sample - ray_origin;
 
         Ray::new(ray_origin, ray_direction)
@@ -230,6 +255,11 @@ impl Camera {
 
     fn sample_square() -> Vec3 {
         Vec3::new(random_double() - 0.5, random_double() - 0.5, 0_f64)
+    }
+
+    fn defocus_disk_sample(&self) -> Point3 {
+        let p: Vec3 = Vec3::random_in_unit_disk();
+        self.center + (p[0] * self.defocus_disk_u) + (p[1] * self.defocus_disk_v)
     }
 
     fn ray_color(r: &Ray, depth: u32, world: &dyn Hittable) -> Color {

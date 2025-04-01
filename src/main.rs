@@ -75,14 +75,29 @@ fn main() {
         }
     }
 
+    let mut custom_file_tag: String = String::new();
+    if let Some(arg) = args.get(3) {
+        match arg.parse::<String>() {
+            Ok(parsed_tag) => custom_file_tag = parsed_tag,
+            Err(_) => {
+                eprintln!("Invalid sample rate provided, using default: {}", custom_file_tag);
+            }
+        }
+    }
+
     if PROGRESSIVE_VIEWPORT {
         run(resolution, camera_samples);
     }
 
     if ORIGINAL_RENDER_TO_PNG {
         let aspect_ratio: f64 = 16_f64 / 9_f64;
-        let vfov: f64 = 20_f64;
-        let camera: Camera = Camera::new(
+        let vfov = 20_f64;
+        let defocus_angle = 1.4;
+        let focus_dist: f64 = 3.4;
+
+        let camera: Camera = Camera::new( // Force refresh
+            defocus_angle,
+            focus_dist,
             Point3::new(-2_f64, 2_f64, 1_f64),
             Point3::new(0_f64, 0_f64, -1_f64),
             Vec3::new(0_f64, 1_f64, 0_f64),
@@ -133,7 +148,8 @@ fn main() {
         let img: ImageBuffer<Rgb<u16>, Vec<u16>> = camera.render(&world);
 
         let img_name = format!(
-            "out/{1}/{0:.prec$}_{2}.png", 
+            "out/{2}/{1:.prec$}_{3}_{0}.png", 
+            custom_file_tag,
             aspect_ratio, 
             resolution, 
             camera_samples,

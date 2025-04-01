@@ -130,6 +130,18 @@ impl Vec3 {
     pub fn unit_vector(v: Vec3) -> Vec3 {
         (1_f64 / v.length()) * v
     }
+
+    pub fn random_in_unit_disk() -> Vec3 {
+        loop {
+            let p: Vec3 = Vec3::new(
+                random_double_range(-1_f64, 1_f64), 
+                random_double_range(-1_f64, 1_f64), 
+                0_f64
+            );
+
+            if p.length_squared() < 1_f64 { return p; }
+        }
+    }
 }
 
 impl<'a> ops::Neg for &'a Vec3 {

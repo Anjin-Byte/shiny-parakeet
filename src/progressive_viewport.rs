@@ -36,8 +36,13 @@ fn combine_images(img1: &ColorImage, img2: &ColorImage) -> ColorImage {
 
 pub fn run(resolution: u32, camera_samples: u32) {
     let aspect_ratio: f64 = 16_f64 / 9_f64;
-    let vfov: f64 = 90_f64;
-    let camera: Camera = Camera::new(
+    let vfov = 20_f64;
+    let defocus_angle = 10_f64;
+    let focus_dist: f64 = 3.4;
+
+    let camera: Camera = Camera::new( // Force refresh
+        defocus_angle,
+        focus_dist,
         Point3::new(-2_f64, 2_f64, 1_f64),
         Point3::new(0_f64, 0_f64, -1_f64),
         Vec3::new(0_f64, 1_f64, 0_f64),
