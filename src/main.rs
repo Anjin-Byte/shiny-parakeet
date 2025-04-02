@@ -45,12 +45,28 @@ fn random_double_range(min: f64, max: f64) -> f64 {
 }
 
 /* TODO
-Finish book 1 first.
+Book 1 finished! Congrats! :)
 
-Then focus on the refactor to enable GUI dev. Use refactor to refamiliarize yourself with 
-book 1 concepts. Once you refactor there will be divergences with book code 
-and your own which may be significant. You must have good understanding of book 1
-logic in order to continue implementing concepts in book 2-3. 
+0) Spend time reviewing the mathamatics on paper 
+to prep for your time with book 2 material.
+
+1) Consider calcifying the code base with a refactor which 
+address minor gripes and adds comments where needed. Store
+the polished book 1 code base as a branch labelled as such.
+
+2) There are all sorts of places you can take this code base
+in time. GPU acceleration, noise filters, emissive material,
+adaptive sampling, progressive viewport, etc..
+
+I think it is important to keep these ideas relegated to 
+specific branches until each idea is sufficiently developed.
+This study of homebrew graphics is a complex one and it always
+helps to stay organized.
+
+3) "Ray Tracing: The Next Week" - Let your main branch be the one
+which follows the directions of the trilogy. Integration of aformentioned
+features follow a core functionality outlined in these books is completed 
+to avoid issues.
 */
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -80,7 +96,7 @@ fn main() {
         match arg.parse::<String>() {
             Ok(parsed_tag) => custom_file_tag = parsed_tag,
             Err(_) => {
-                eprintln!("Invalid sample rate provided, using default: {}", custom_file_tag);
+                eprintln!("No custom file tags passed as arg.");
             }
         }
     }
