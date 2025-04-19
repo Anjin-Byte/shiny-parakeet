@@ -2,6 +2,7 @@ use geometry::vec3::Vec3;
 use image::{ImageBuffer, Rgb};
 use rand::Rng;
 
+use std::time::Instant;
 use std::{env, fs};
 use std::path::Path;
 use std::f64::consts::PI;
@@ -111,7 +112,7 @@ fn main() {
         let defocus_angle = 1.4;
         let focus_dist: f64 = 3.4;
 
-        let camera: Camera = Camera::new( // Force refresh
+        let camera: Camera = Camera::new(
             defocus_angle,
             focus_dist,
             Point3::new(-2_f64, 2_f64, 1_f64),
@@ -122,6 +123,19 @@ fn main() {
             resolution, 
             camera_samples
         );
+
+        let camera_sobel_heuristic: Camera = Camera::new(
+            defocus_angle,
+            focus_dist,
+            Point3::new(-2_f64, 2_f64, 1_f64),
+            Point3::new(0_f64, 0_f64, -1_f64),
+            Vec3::new(0_f64, 1_f64, 0_f64),
+            vfov, 
+            aspect_ratio, 
+            resolution / 2, 
+            4
+        );
+
         // (94,187,161)
         let material_ground: Lambertian = Lambertian::new(Color::new(0.419, 0.400, 0.776));
         //let material_ground_metal: Metal = Metal::new(Color::new(0.419, 0.400, 0.776), 0_f64);
@@ -161,10 +175,45 @@ fn main() {
             Box::new(material_right)
         )));
 
+        let start = Instant::now();
         let img: ImageBuffer<Rgb<u16>, Vec<u16>> = camera.render(&world);
+        let elapsed = start.elapsed();
+        println!("Elapsed: {:.2?}", elapsed);
+
+        let img_edge_heuristic: ImageBuffer<Rgb<u16>, Vec<u16>> = 
+                Camera::sobel_filter(&camera_sobel_heuristic.render(&world), 0.1);
+
+        let start = Instant::now();
+        let adaptive_image = camera.render_adaptive(
+            &world, 
+            15, 
+            50, 
+            3.0, 
+            &img_edge_heuristic
+        );
+        let elapsed = start.elapsed();
+        println!("Elapsed: {:.2?}", elapsed);
 
         let img_name = format!(
             "out/{2}/{1:.prec$}_{3}_{0}.png", 
+            custom_file_tag,
+            aspect_ratio, 
+            resolution, 
+            camera_samples,
+            prec = 2,
+        );
+
+        let img_edge_heuristic_path = format!(
+            "out/{2}/{1:.prec$}_{3}_{0}_edge.png", 
+            custom_file_tag,
+            aspect_ratio, 
+            resolution, 
+            camera_samples,
+            prec = 2,
+        );
+
+        let img_adaptive_heuristic_path = format!(
+            "out/{2}/{1:.prec$}_{3}_{0}_adaptive.png", 
             custom_file_tag,
             aspect_ratio, 
             resolution, 
@@ -176,9 +225,31 @@ fn main() {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).expect("Failed to create directories");
         }
-    
-                  
+
+        let edge_path = Path::new(&img_edge_heuristic_path);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).expect("Failed to create directories");
+        }
+
+        let adaptive_path = Path::new(&img_adaptive_heuristic_path);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).expect("Failed to create directories");
+        } 
+                        
+                 
         if let Err(e) = img.save(&img_name) {
+            eprintln!("Failed to save image: {}", e);
+        } else {
+            println!("Image successfully saved to: {:#?}", path);
+        }
+
+        if let Err(e) = img_edge_heuristic.save(&edge_path) {
+            eprintln!("Failed to save image: {}", e);
+        } else {
+            println!("Image successfully saved to: {:#?}", path);
+        } 
+
+        if let Err(e) = adaptive_image.save(&adaptive_path) {
             eprintln!("Failed to save image: {}", e);
         } else {
             println!("Image successfully saved to: {:#?}", path);
