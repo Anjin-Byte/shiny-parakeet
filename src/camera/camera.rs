@@ -265,6 +265,42 @@ impl Camera {
         })
     }
 
+    pub fn entropy_heatmap(
+        &self,
+        world: &dyn Hittable,
+        bins: u8,
+        samples_per_pixel: u32,
+        fast_math: bool,
+    ) -> ImageBuffer<Rgb<u16>, Vec<u16>> {
+        let (width, height) = (self.image_width, self.image_height);
+        let max_entropy = (bins as u32).pow(3) as f64;
+        let max_entropy_bits = max_entropy.log2();
+    
+        let bar = ProgressBar::new((width * height) as u64);
+    
+        ImageBuffer::from_fn(width, height, |i, j| {
+            // Take N samples per pixel
+            let mut samples = vec![];
+            for _ in 0..samples_per_pixel {
+                let ray = self.get_ray(i, j);
+                let color = Self::sample_color_u16(&ray, self.max_depth, world);
+                samples.push(color);
+            }
+    
+            let entropy = if fast_math {
+                Self::exp_pixel_entropy(&samples, bins) as f64
+            } else {
+                Self::pixel_entropy(&samples, bins, false)
+            };
+    
+            let normalized = (entropy / max_entropy_bits).clamp(0.0, 1.0);
+            let value = (normalized * 255.0) as u16;
+    
+            bar.inc(1);
+            Rgb([value, value, value])
+        })
+    }
+
     /* render step returning 'image' crate ImageBuffer type
     pub(crate) fn render_step(&self, world: &dyn Hittable) -> ImageBuffer<Rgb<u16>, Vec<u16>> {
         let img = ImageBuffer::from_fn(self.image_width, self.image_height, |i, j| {

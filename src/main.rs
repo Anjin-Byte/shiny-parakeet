@@ -163,7 +163,7 @@ fn main() {
 
         //let img: ImageBuffer<Rgb<u16>, Vec<u16>> = camera.render(&world);
 
-        let img_adaptive = camera.entropy_adaptive_render(
+/*         let img_adaptive = camera.entropy_adaptive_render(
             &world, 
             8, 
             100, 
@@ -171,6 +171,13 @@ fn main() {
             2.0, 
             0.05, 
             false
+        ); */
+
+        let heatmap_entropy = camera.entropy_heatmap(
+            &world, 
+            8, 
+            16, 
+            true
         );
 
         let img_name = format!(
@@ -207,7 +214,7 @@ fn main() {
             println!("Image successfully saved to: {:#?}", path);
         }  */
 
-        if let Err(e) = img_adaptive.save(&img_adaptive_name) {
+        if let Err(e) = heatmap_entropy.save("heatmap.png") {
             eprintln!("Failed to save image: {}", e);
         } else {
             println!("Image successfully saved to: {:#?}", path);
