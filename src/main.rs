@@ -161,10 +161,29 @@ fn main() {
             Box::new(material_right)
         )));
 
-        let img: ImageBuffer<Rgb<u16>, Vec<u16>> = camera.render(&world);
+        //let img: ImageBuffer<Rgb<u16>, Vec<u16>> = camera.render(&world);
+
+        let img_adaptive = camera.entropy_adaptive_render(
+            &world, 
+            8, 
+            100, 
+            500, 
+            2.0, 
+            0.05, 
+            false
+        );
 
         let img_name = format!(
             "out/{2}/{1:.prec$}_{3}_{0}.png", 
+            custom_file_tag,
+            aspect_ratio, 
+            resolution, 
+            camera_samples,
+            prec = 2,
+        );
+
+        let img_adaptive_name = format!(
+            "out/{2}/{1:.prec$}_{3}_{0}_entropy_exp.png", 
             custom_file_tag,
             aspect_ratio, 
             resolution, 
@@ -177,8 +196,18 @@ fn main() {
             fs::create_dir_all(parent).expect("Failed to create directories");
         }
     
+        let adaptive_path = Path::new(&img_adaptive_name);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).expect("Failed to create directories");
+        }
                   
-        if let Err(e) = img.save(&img_name) {
+/*         if let Err(e) = img.save(&img_name) {
+            eprintln!("Failed to save image: {}", e);
+        } else {
+            println!("Image successfully saved to: {:#?}", path);
+        }  */
+
+        if let Err(e) = img_adaptive.save(&img_adaptive_name) {
             eprintln!("Failed to save image: {}", e);
         } else {
             println!("Image successfully saved to: {:#?}", path);

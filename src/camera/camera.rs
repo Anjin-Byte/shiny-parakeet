@@ -1,8 +1,10 @@
+use std::collections::HashMap;
 use std::u8;
 
 use eframe::egui::{Color32, ColorImage};
 use image::{ImageBuffer, Rgb};
 use indicatif::ProgressBar;
+use micromath::F32Ext;
 
 use crate::geometry::ray::Ray;
 use crate::geometry::vec3::{Color, Point3, Vec3};
@@ -61,6 +63,76 @@ impl Camera {
         0_f64
     }
 
+    fn quantize_color(color: Rgb<u16>, bins: u8) -> Rgb<u16> {
+        let c: [f64; 3] = [color[0] as f64, color[1] as f64, color[2] as f64];
+        
+        image::Rgb([
+            (c[0].clamp(0.0, 0.999) * bins as f64) as u16,
+            (c[1].clamp(0.0, 0.999) * bins as f64) as u16,
+            (c[2].clamp(0.0, 0.999) * bins as f64) as u16
+        ])
+    }
+
+    fn bits_for_bins<K, V>(hist: &HashMap<K, V>) -> u32 {
+        let n = hist.len();
+        if n <= 1 {
+            // 0 bits if there's 0 or 1 bin: no choice to encode
+            return 0;
+        }
+        // On a 64‑bit platform, usize::BITS == 64.  For 32‑bit it's 32.
+        // (n-1).leading_zeros() gives floor_log2(n-1) as:
+        //    floor_log2(n-1) = (usize::BITS - 1) - ((n-1).leading_zeros())
+        // so subtracting from usize::BITS yields ceil_log2(n).
+        usize::BITS - (n - 1).leading_zeros()
+    }
+
+    fn pixel_entropy(samples: &[Rgb<u16>], bins: u8, fast_math: bool) -> f64 {
+        if samples.is_empty() { return 0.0; }
+        let mut histogram = HashMap::new();
+
+        for &sample in samples {
+            let q_color = Self::quantize_color(sample, bins);
+            *histogram.entry(q_color).or_insert(0u32) += 1;
+        }
+
+        let total = samples.len() as f64;
+        let log2_total = total.log2();
+
+        histogram.values()
+            .map(|&count| {
+                let p = count as f64 / total;
+
+                if fast_math {
+                    let e = 31 - count.leading_zeros();
+                    p * (log2_total - e as f64)
+                } else {
+                    -p * p.log2()
+                }
+            })
+            .sum()
+    }
+
+    fn exp_pixel_entropy(samples: &[Rgb<u16>], bins: u8) -> f32 {
+        if samples.is_empty() { return 0.0; }
+        let mut histogram = HashMap::new();
+
+        for &sample in samples {
+            let q_color = Self::quantize_color(sample, bins);
+            *histogram.entry(q_color).or_insert(0u32) += 1;
+        }
+
+        let total: f32 = samples.len() as f32;
+        let log2_total: f32 = <f32 as F32Ext>::log2(total);
+
+        histogram.values()
+            .map(|&count| {
+                let p = count as f32 / total;
+                let log2_ci = <f32 as F32Ext>::log2(count as f32);
+                p * (log2_total - log2_ci)
+            })
+            .sum()
+    }
+
     pub fn egui_image_from_fn<F>(width: u32, height: u32, mut f: F) -> ColorImage
     where
         F: FnMut(u32, u32) -> Color32,
@@ -93,6 +165,104 @@ impl Camera {
         });
 
         img
+    }
+
+    fn sample_color_u16(ray: &Ray, depth: u32, world: &dyn Hittable) -> Rgb<u16> {
+        let c = Self::ray_color(ray, depth, world);
+        Rgb([
+            (u16::MAX as f64 * c.x().clamp(0.0, 0.999)) as u16,
+            (u16::MAX as f64 * c.y().clamp(0.0, 0.999)) as u16,
+            (u16::MAX as f64 * c.z().clamp(0.0, 0.999)) as u16,
+        ])
+    }
+    
+    fn sample_color(ray: &Ray, depth: u32, world: &dyn Hittable) -> [f64; 3] {
+        let c = Self::ray_color(ray, depth, world);
+        [c.x(), c.y(), c.z()]
+    }
+
+    pub fn entropy_adaptive_render(
+        &self,
+        world: &dyn Hittable,
+        bins: u8,
+        min_samples: u32,
+        max_samples: u32,
+        gamma: f64,
+        entropy_threshold: f64,
+        fast_math: bool,
+    ) -> ImageBuffer<Rgb<u16>, Vec<u16>> {
+        let (width, height) = (self.image_width, self.image_height);
+        let max_entropy = (bins as u32).pow(3) as f64; // bins^3 possibilities
+        let max_entropy_bits = max_entropy.log2();     // max bits of entropy
+
+        let bar = ProgressBar::new((width * height) as u64);
+
+        ImageBuffer::from_fn(width, height, |i, j| {
+            // STEP 1: Initial 16-sample entropy estimate
+            let mut initial_samples = vec![];
+            for _ in 0..16 {
+                let ray = self.get_ray(i, j);
+                let color = Self::sample_color_u16(&ray, self.max_depth, world);
+                initial_samples.push(color);
+            }
+
+            let (h1, h2) = if fast_math {
+                let mid = 8;
+                let h1 = Self::exp_pixel_entropy(&initial_samples[..mid], bins) as f64;
+                let h2 = Self::exp_pixel_entropy(&initial_samples[mid..], bins) as f64;
+                (h1, h2)
+            } else {
+                let mid = 8;
+                let h1 = Self::pixel_entropy(&initial_samples[..mid], bins, false);
+                let h2 = Self::pixel_entropy(&initial_samples[mid..], bins, false);
+                (h1, h2)
+            };
+
+            let mut entropy_est = h2;
+            if (h2 - h1).abs() > entropy_threshold {
+                // Not stable: take 16 more samples to refine
+                for _ in 0..16 {
+                    let ray = self.get_ray(i, j);
+                    let color = Self::sample_color_u16(&ray, self.max_depth, world);
+                    initial_samples.push(color);
+                }
+
+                entropy_est = if fast_math {
+                    Self::exp_pixel_entropy(&initial_samples, bins) as f64
+                } else {
+                    Self::pixel_entropy(&initial_samples, bins, false)
+                };
+            }
+
+            // STEP 2: Compute adaptive sample count from entropy
+            let normalized_entropy = (entropy_est / max_entropy_bits).clamp(0.0, 1.0);
+            let adaptive_samples = min_samples + ((max_samples - min_samples) as f64 * normalized_entropy.powf(gamma)) as u32;
+
+            // STEP 3: Final sampling pass
+            let mut accum = [0.0; 3];
+            for _ in 0..adaptive_samples {
+                let ray = self.get_ray(i, j);
+                let color = Self::sample_color(&ray, self.max_depth, world);
+                for k in 0..3 {
+                    accum[k] += color[k];
+                }
+            }
+            for k in 0..3 {
+                accum[k] /= adaptive_samples as f64;
+            }
+
+            let to_u16 = |v: f64| -> u16 {
+                let gamma_corrected = v.sqrt(); // gamma 2.0
+                (u16::MAX as f64 * gamma_corrected.clamp(0.0, 0.999)) as u16
+            };
+
+            bar.inc(1);
+            Rgb([
+                to_u16(accum[0]),
+                to_u16(accum[1]),
+                to_u16(accum[2]),
+            ])
+        })
     }
 
     /* render step returning 'image' crate ImageBuffer type
