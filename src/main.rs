@@ -130,13 +130,22 @@ fn main() {
         let material_left: Dielectric = Dielectric::new(1.50);
         let material_bubble: Dielectric = Dielectric::new(1_f64 / 1.50);
         let material_right: Metal = Metal::new(Color::new(0.6, 0.6, 0.7), 0.02);
-    
+        
+
+        let empty_material_ground: Lambertian = Lambertian::new(Color::new(0.419, 0.400, 0.776));
+        let mut empty_world: HittableList = HittableList::new();
+        empty_world.add(Box::new(Sphere::new(
+            Point3::new(0_f64, -100.5, -1_f64),
+            100_f64,
+            Box::new(material_ground)
+        )));
+
         let mut world: HittableList = HittableList::new();
         
         world.add(Box::new(Sphere::new(
             Point3::new(0_f64, -100.5, -1_f64),
             100_f64,
-            Box::new(material_ground)
+            Box::new(empty_material_ground)
         )));
         world.add(Box::new(Sphere::new(
             Point3::new(0_f64, 0_f64, -1.2),
@@ -171,13 +180,13 @@ fn main() {
             2.0, 
             0.05, 
             false
-        ); */
+        );  */
 
-        let heatmap_entropy = camera.entropy_heatmap(
+        let heatmap_entropy = camera.entropy_heatmap_temporal(
             &world, 
-            8, 
-            16, 
-            true
+            30, 
+            0.5,
+            32
         );
 
         let img_name = format!(
@@ -207,12 +216,12 @@ fn main() {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).expect("Failed to create directories");
         }
-                  
-/*         if let Err(e) = img.save(&img_name) {
+/*                           
+        if let Err(e) = img.save(&img_name) {
             eprintln!("Failed to save image: {}", e);
         } else {
             println!("Image successfully saved to: {:#?}", path);
-        }  */
+        } */
 
         if let Err(e) = heatmap_entropy.save("heatmap.png") {
             eprintln!("Failed to save image: {}", e);

@@ -2,7 +2,8 @@ use std::collections::HashMap;
 use std::u8;
 
 use eframe::egui::{Color32, ColorImage};
-use image::{ImageBuffer, Rgb};
+use image::imageops::{blur, resize, FilterType};
+use image::{imageops, ImageBuffer, Rgb};
 use indicatif::ProgressBar;
 use micromath::F32Ext;
 
@@ -98,7 +99,7 @@ impl Camera {
         let total = samples.len() as f64;
         let log2_total = total.log2();
 
-        histogram.values()
+        let entropy = histogram.values()
             .map(|&count| {
                 let p = count as f64 / total;
 
@@ -106,10 +107,14 @@ impl Camera {
                     let e = 31 - count.leading_zeros();
                     p * (log2_total - e as f64)
                 } else {
+                    println!("entropy: {}", -p * p.log2());
                     -p * p.log2()
                 }
             })
-            .sum()
+            .sum();
+
+        println!("entropy: {}", entropy);
+        entropy
     }
 
     fn exp_pixel_entropy(samples: &[Rgb<u16>], bins: u8) -> f32 {
@@ -265,40 +270,199 @@ impl Camera {
         })
     }
 
+    /// Render a heatmap of per‑pixel entropy over the scene.
+    ///
+    /// For each pixel:
+    /// 1. Take an initial batch of 16 samples, compute H₁ and H₂ on halves.
+    /// 2. If |H₂−H₁| > `entropy_threshold`, take 16 more samples and recompute.
+    /// 3. Normalize entropy by `max_entropy_bits = log2(bins³)`.
+    /// 4. Map normalized entropy ∈ [0,1] to a blue→red gradient.
+    ///
+    /// # Parameters
+    /// - `world` – scene to trace against
+    /// - `bins` – number of quantization bins per channel
+    /// - _unused_ `min_samples`, `max_samples`, `gamma` – only entropy matters here
+    /// - `entropy_threshold` – when to refine entropy estimate
+    /// - `fast_math` – whether to use the `exp_pixel_entropy` shortcut
+    ///
+    /// # Returns
+    /// A heatmap image where blue = low entropy, red = high entropy.
     pub fn entropy_heatmap(
         &self,
         world: &dyn Hittable,
-        bins: u8,
-        samples_per_pixel: u32,
-        fast_math: bool,
+        bins: u32,
+        entropy_threshold: f64,
     ) -> ImageBuffer<Rgb<u16>, Vec<u16>> {
-        let (width, height) = (self.image_width, self.image_height);
-        let max_entropy = (bins as u32).pow(3) as f64;
-        let max_entropy_bits = max_entropy.log2();
-    
-        let bar = ProgressBar::new((width * height) as u64);
-    
-        ImageBuffer::from_fn(width, height, |i, j| {
-            // Take N samples per pixel
-            let mut samples = vec![];
-            for _ in 0..samples_per_pixel {
+        let (w, h) = (self.image_width, self.image_height);
+        let max_bits = (bins.pow(3) as f64).log2();
+        let bar = ProgressBar::new((w * h) as u64);
+
+        imageops::fast_blur(&ImageBuffer::from_fn(w, h, |i, j| {
+            // 1) collect 16 float‐color samples
+            let mut samples = Vec::with_capacity(128);
+            for _ in 0..64 {
                 let ray = self.get_ray(i, j);
-                let color = Self::sample_color_u16(&ray, self.max_depth, world);
-                samples.push(color);
+                let col = Self::ray_color(&ray, self.max_depth, world);
+                samples.push(col);
             }
-    
-            let entropy = if fast_math {
-                Self::exp_pixel_entropy(&samples, bins) as f64
-            } else {
-                Self::pixel_entropy(&samples, bins, false)
-            };
-    
-            let normalized = (entropy / max_entropy_bits).clamp(0.0, 1.0);
-            let value = (normalized * 255.0) as u16;
-    
+
+            // helper: quantize a Vec3 ∈ [0,1]^3 into (r_i,g_i,b_i) in 0..bins-1
+            fn quantize(c: Vec3, bins: u32) -> (u32,u32,u32) {
+                let f = |x: f64| -> u32 {
+                    let t = (x.clamp(0.0,1.0) * (bins as f64 - 1.0)).floor();
+                    t as u32
+                };
+                (f(c.x()), f(c.y()), f(c.z()))
+            }
+
+            // compute entropy on a slice of Vec3 samples
+            fn shannon_entropy(slice: &[Vec3], bins: u32) -> f64 {
+                let mut hist = HashMap::new();
+                for &c in slice {
+                    *hist.entry(quantize(c, bins)).or_insert(0u32) += 1;
+                }
+                let total = slice.len() as f64;
+                hist.values()
+                    .map(|&cnt| {
+                        let p = cnt as f64 / total;
+                        -p * p.log2()
+                    })
+                    .sum()
+            }
+
+            // 2) two‐half stability check
+            let mid = samples.len() / 2;
+            let h1 = shannon_entropy(&samples[..mid], bins);
+            let h2 = shannon_entropy(&samples[mid..], bins);
+            let mut h = h2;
+            if (h2 - h1).abs() > entropy_threshold {
+                // refine: 16 more
+                for _ in 0..64 {
+                    let ray = self.get_ray(i, j);
+                    let col = Self::ray_color(&ray, self.max_depth, world);
+                    samples.push(col);
+                }
+                h = shannon_entropy(&samples, bins);
+            }
+
+            let norm = (h / max_bits).clamp(0.0, 1.0);
+            // distance from 0.5 in [0,0.5]
+            let d = (norm - 0.5).abs();
+            // map so that d = 0 → white, d = 0.5 → black
+            let intensity = 1.0 - (d * 2.0).clamp(0.0, 1.0);
+            let gray_u16 = (intensity * u16::MAX as f64).round() as u16;
+
             bar.inc(1);
-            Rgb([value, value, value])
-        })
+            Rgb([gray_u16, gray_u16, gray_u16])
+        }), 3_f32)
+    }
+
+    /// Render a temporally‑averaged entropy heatmap.
+    ///
+    /// For each pixel (i,j), this performs `runs` independent entropy
+    /// estimates and averages them to reduce Monte Carlo noise. Each estimate:
+    /// 1. Samples 16 rays → colors via `ray_color`
+    /// 2. Splits into two halves, computes Shannon entropy on each
+    /// 3. If |H₂–H₁| > `entropy_threshold`, takes 16 more samples and recomputes
+    /// 4. Returns the Shannon entropy in bits
+    ///
+    /// After averaging over `runs`, the mean entropy is normalized by
+    /// `log₂(bins³)` to [0,1] and mapped to a 16‑bit grayscale.
+    ///
+    /// # Parameters
+    /// - `world`              – the scene to trace
+    /// - `bins`               – quantization bins per channel
+    /// - `entropy_threshold`  – stability threshold for two‑half check
+    /// - `fast_math`          – unused here (exact entropy is always used)
+    /// - `runs`               – number of independent entropy estimations
+    ///
+    /// # Returns
+    /// An `ImageBuffer<Rgb<u16>>` where 0=black (low entropy) and 65535=white (high entropy).
+    pub fn entropy_heatmap_temporal(
+        &self,
+        world: &dyn Hittable,
+        bins: u32,
+        entropy_threshold: f64,
+        runs: u32,
+    ) -> ImageBuffer<Rgb<u16>, Vec<u16>> {
+        // scene dimensions
+        let filter = FilterType::CatmullRom;
+        let (width, height) = (self.image_width, self.image_height);
+        // maximum possible entropy in bits = log2(bins³)
+        let max_entropy_bits = (bins.pow(3) as f64).log2();
+        let bar = ProgressBar::new((width * height) as u64);
+
+        // helper to quantize a Vec3 color into a (r,g,b) bin triple
+        fn quantize(c: Vec3, bins: u32) -> (u32, u32, u32) {
+            let f = |x: f64| ((x.clamp(0.0, 1.0) * (bins as f64 - 1.0)).floor()) as u32;
+            (f(c.x()), f(c.y()), f(c.z()))
+        }
+
+        // compute Shannon entropy (in bits) of a slice of Vec3 samples
+        fn shannon_entropy(samples: &[Vec3], bins: u32) -> f64 {
+            let mut hist = HashMap::new();
+            for &col in samples {
+                *hist.entry(quantize(col, bins)).or_insert(0u32) += 1;
+            }
+            let total = samples.len() as f64;
+            hist.values()
+                .map(|&count| {
+                    let p = count as f64 / total;
+                    -p * p.log2()
+                })
+                .sum()
+        }
+
+        let heatmap = ImageBuffer::from_fn(width, height, |i, j| {
+            // accumulate entropy over multiple runs
+            let mut sum_entropy = 0.0;
+            for _ in 0..runs {
+                // 1) initial 16 float‐color samples
+                let mut samples = Vec::with_capacity(32);
+                for _ in 0..16 {
+                    let ray = self.get_ray(i, j);
+                    samples.push(Self::ray_color(&ray, self.max_depth, world));
+                }
+
+                // 2) two‐half stability check
+                let mid = samples.len() / 2;
+                let h1 = shannon_entropy(&samples[..mid], bins);
+                let h2 = shannon_entropy(&samples[mid..], bins);
+
+                let mut h = h2;
+                if (h2 - h1).abs() > entropy_threshold {
+                    // 3) refine with 16 more samples
+                    for _ in 0..16 {
+                        let ray = self.get_ray(i, j);
+                        samples.push(Self::ray_color(&ray, self.max_depth, world));
+                    }
+                    h = shannon_entropy(&samples, bins);
+                }
+
+                sum_entropy += h;
+            }
+
+            // 4) average and normalize to [0,1]
+            let avg = sum_entropy / runs as f64;
+            let norm = (avg / max_entropy_bits).clamp(0.0, 1.0);
+
+            // 5) map to 16‐bit grayscale
+            let intensity = (norm * u16::MAX as f64).round() as u16;
+            bar.inc(1);
+            Rgb([intensity, intensity, intensity])
+        });
+
+        let nwidth = width * 8;
+        let nheight = height * 8;
+
+        let sigma = 0.8;
+        let blur = blur(&heatmap, sigma);
+
+        let heatmap_upscale = resize(&blur, nwidth, nheight, filter);
+
+
+        heatmap_upscale
+        
     }
 
     /* render step returning 'image' crate ImageBuffer type
@@ -325,32 +489,56 @@ impl Camera {
         img
     }
     */
+    /// Renders the full image by sampling each pixel, showing a progress bar.
     pub(crate) fn render(&self, world: &dyn Hittable) -> ImageBuffer<Rgb<u16>, Vec<u16>> {
-        let bar = ProgressBar::new(self.image_width as u64 * self.image_height as u64);
+        let total_pixels = (self.image_width as u64) * (self.image_height as u64);
+        let bar = ProgressBar::new(total_pixels);
+
         let img = ImageBuffer::from_fn(self.image_width, self.image_height, |i, j| {
-    
-            let mut pixel_color = Color::default();
-            for _ in 0..self.samples_per_pixel {
-                let r: Ray = self.get_ray(i, j);
-                pixel_color += Self::ray_color(&r, self.max_depth, world);
-            }
-            pixel_color = pixel_color * self.pixel_samples_scale;
+            // 1) accumulate samples
+            let linear_color = self.sample_pixel_color(i, j, world);
 
-            let r_gamma: f64 = Self::linear_to_gamma(pixel_color.x());
-            let g_gamma: f64 = Self::linear_to_gamma(pixel_color.y());
-            let b_gamma: f64 = Self::linear_to_gamma(pixel_color.z());
-
-            let intensity = Interval::new(0_f64, 0.999);
-            let r: u16 = (u16::MAX as f64 * intensity.clamp(r_gamma)) as u16;
-            let g: u16 = (u16::MAX as f64 * intensity.clamp(g_gamma)) as u16;
-            let b: u16 = (u16::MAX as f64 * intensity.clamp(b_gamma)) as u16;
+            // 2) convert to u16 RGB
+            let pixel = Self::to_rgb16(linear_color);
 
             bar.inc(1);
-            image::Rgb([r, g, b])
+            pixel
         });
-        bar.finish();
 
+        bar.finish();
         img
+    }
+
+    /// Shoot `self.samples_per_pixel` rays through pixel (i,j), trace each,
+    /// sum up their colors, then scale by `1 / samples_per_pixel`.
+    fn sample_pixel_color(
+        &self, 
+        i: u32, j: u32, 
+        world: &dyn Hittable
+    ) -> Color {
+        let mut accum = Color::default();
+        for _ in 0..self.samples_per_pixel {
+            let ray: Ray = self.get_ray(i, j);
+            accum += Self::ray_color(&ray, self.max_depth, world);
+        }
+        accum * self.pixel_samples_scale
+    }
+
+    /// Gamma‑correct (√), clamp to [0,0.999], and convert each channel
+    /// into a full‑range `u16`. Returns `Rgb([r, g, b])`.
+    fn to_rgb16(linear: Color) -> Rgb<u16> {
+        // 1) gamma‑correct
+        let r_gamma = Self::linear_to_gamma(linear.x());
+        let g_gamma = Self::linear_to_gamma(linear.y());
+        let b_gamma = Self::linear_to_gamma(linear.z());
+
+        // 2) clamp and map to [0..u16::MAX]
+        let clamp = |v: f64| {
+            let v = Interval::new(0.0, 0.999).clamp(v);
+            (v * (u16::MAX as f64)) as u16
+        };
+
+        Rgb([ clamp(r_gamma), clamp(g_gamma), clamp(b_gamma) ])
     }
 
     fn init(
