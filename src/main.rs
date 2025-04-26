@@ -1,5 +1,6 @@
 use geometry::vec3::Vec3;
-use image::{ImageBuffer, Rgb};
+use image::imageops::{resize, FilterType};
+use image::{ImageBuffer, Luma, Rgb};
 use rand::Rng;
 
 use std::{env, fs};
@@ -71,7 +72,7 @@ to avoid issues.
 fn main() {
     let args: Vec<String> = env::args().collect();
 
-    let mut resolution: u32 = 1000;
+    let mut resolution: u32 = 512;
     if let Some(arg) = args.get(1) {
         match arg.parse::<u32>() {
             Ok(parsed_res) => resolution = parsed_res,
@@ -122,6 +123,19 @@ fn main() {
             resolution, 
             camera_samples
         );
+
+        let entropy_camera: Camera = Camera::new( // Force refresh
+            defocus_angle,
+            focus_dist,
+            Point3::new(-2_f64, 2_f64, 1_f64),
+            Point3::new(0_f64, 0_f64, -1_f64),
+            Vec3::new(0_f64, 1_f64, 0_f64),
+            vfov, 
+            aspect_ratio, 
+            resolution / 4, 
+            camera_samples
+        );
+
         // (94,187,161)
         let material_ground: Lambertian = Lambertian::new(Color::new(0.419, 0.400, 0.776));
         //let material_ground_metal: Metal = Metal::new(Color::new(0.419, 0.400, 0.776), 0_f64);
@@ -184,10 +198,21 @@ fn main() {
 
         let heatmap_entropy = camera.entropy_heatmap_temporal(
             &world, 
-            30, 
+            8, 
             0.5,
-            32
+            24
         );
+
+        let final_image = camera.pre_compute_adaptive_render(
+            &world,
+            &heatmap_entropy,
+            64,
+            256,
+            0.85,
+        );
+
+       // let filter = FilterType::Triangle;
+        //let filtered_img = resize(&final_image, camera.image_height, camera.image_height, filter);
 
         let img_name = format!(
             "out/{2}/{1:.prec$}_{3}_{0}.png", 
@@ -223,7 +248,7 @@ fn main() {
             println!("Image successfully saved to: {:#?}", path);
         } */
 
-        if let Err(e) = heatmap_entropy.save("heatmap.png") {
+        if let Err(e) = final_image.save("heatmap.png") {
             eprintln!("Failed to save image: {}", e);
         } else {
             println!("Image successfully saved to: {:#?}", path);

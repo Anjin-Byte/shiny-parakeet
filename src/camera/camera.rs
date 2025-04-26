@@ -3,7 +3,7 @@ use std::u8;
 
 use eframe::egui::{Color32, ColorImage};
 use image::imageops::{blur, resize, FilterType};
-use image::{imageops, ImageBuffer, Rgb};
+use image::{imageops, ImageBuffer, Luma, Rgb};
 use indicatif::ProgressBar;
 use micromath::F32Ext;
 
@@ -186,6 +186,53 @@ impl Camera {
         [c.x(), c.y(), c.z()]
     }
 
+    pub fn pre_compute_adaptive_render(
+        &self,
+        world: &dyn Hittable,
+        luma_map: &ImageBuffer<Luma<u16>, Vec<u16>>,
+        min_samples: u32,
+        max_samples: u32,
+        gamma: f64,
+    ) -> ImageBuffer<Rgb<u16>, Vec<u16>> {
+        assert_eq!(
+            (self.image_width, self.image_height),
+            luma_map.dimensions(),
+            "Camera resolution and entropy map must match"
+        );
+
+        println!("Rendering(adaptive) image...");
+        let total = (self.image_width as u64) * (self.image_height as u64);
+        let bar   = indicatif::ProgressBar::new(total);
+
+        ImageBuffer::from_fn(self.image_width, self.image_height, |i, j| {
+            let luma: u16 = luma_map.get_pixel(i, j)[0];
+            let normalized_entropy = (luma as f64) / (u16::MAX as f64);
+
+            let adaptive_samples = min_samples
+                + ((max_samples - min_samples) as f64 * normalized_entropy.powf(gamma)) as u32;
+
+            let mut accum = [0.0; 3];
+            for _ in 0..adaptive_samples {
+                let ray   = self.get_ray(i, j);
+                let color = Self::sample_color(&ray, self.max_depth, world);
+                for k in 0..3 {
+                    accum[k] += color[k];
+                }
+            }
+            for k in 0..3 {
+                accum[k] /= adaptive_samples as f64;
+            }
+
+            let to_u16 = |v: f64| -> u16 {
+                let gamma_corrected = v.sqrt();
+                (u16::MAX as f64 * gamma_corrected.clamp(0.0, 0.999)) as u16
+            };
+
+            bar.inc(1);
+            Rgb([to_u16(accum[0]), to_u16(accum[1]), to_u16(accum[2])])
+        })
+    }
+
     pub fn entropy_adaptive_render(
         &self,
         world: &dyn Hittable,
@@ -203,7 +250,6 @@ impl Camera {
         let bar = ProgressBar::new((width * height) as u64);
 
         ImageBuffer::from_fn(width, height, |i, j| {
-            // STEP 1: Initial 16-sample entropy estimate
             let mut initial_samples = vec![];
             for _ in 0..16 {
                 let ray = self.get_ray(i, j);
@@ -225,7 +271,6 @@ impl Camera {
 
             let mut entropy_est = h2;
             if (h2 - h1).abs() > entropy_threshold {
-                // Not stable: take 16 more samples to refine
                 for _ in 0..16 {
                     let ray = self.get_ray(i, j);
                     let color = Self::sample_color_u16(&ray, self.max_depth, world);
@@ -239,11 +284,9 @@ impl Camera {
                 };
             }
 
-            // STEP 2: Compute adaptive sample count from entropy
             let normalized_entropy = (entropy_est / max_entropy_bits).clamp(0.0, 1.0);
             let adaptive_samples = min_samples + ((max_samples - min_samples) as f64 * normalized_entropy.powf(gamma)) as u32;
 
-            // STEP 3: Final sampling pass
             let mut accum = [0.0; 3];
             for _ in 0..adaptive_samples {
                 let ray = self.get_ray(i, j);
@@ -298,7 +341,6 @@ impl Camera {
         let bar = ProgressBar::new((w * h) as u64);
 
         imageops::fast_blur(&ImageBuffer::from_fn(w, h, |i, j| {
-            // 1) collect 16 float‐color samples
             let mut samples = Vec::with_capacity(128);
             for _ in 0..64 {
                 let ray = self.get_ray(i, j);
@@ -315,7 +357,6 @@ impl Camera {
                 (f(c.x()), f(c.y()), f(c.z()))
             }
 
-            // compute entropy on a slice of Vec3 samples
             fn shannon_entropy(slice: &[Vec3], bins: u32) -> f64 {
                 let mut hist = HashMap::new();
                 for &c in slice {
@@ -330,13 +371,11 @@ impl Camera {
                     .sum()
             }
 
-            // 2) two‐half stability check
             let mid = samples.len() / 2;
             let h1 = shannon_entropy(&samples[..mid], bins);
             let h2 = shannon_entropy(&samples[mid..], bins);
             let mut h = h2;
             if (h2 - h1).abs() > entropy_threshold {
-                // refine: 16 more
                 for _ in 0..64 {
                     let ray = self.get_ray(i, j);
                     let col = Self::ray_color(&ray, self.max_depth, world);
@@ -373,7 +412,6 @@ impl Camera {
     /// - `world`              – the scene to trace
     /// - `bins`               – quantization bins per channel
     /// - `entropy_threshold`  – stability threshold for two‑half check
-    /// - `fast_math`          – unused here (exact entropy is always used)
     /// - `runs`               – number of independent entropy estimations
     ///
     /// # Returns
@@ -382,56 +420,52 @@ impl Camera {
         &self,
         world: &dyn Hittable,
         bins: u32,
-        entropy_threshold: f64,
+        entropy_threshold: f32,
         runs: u32,
-    ) -> ImageBuffer<Rgb<u16>, Vec<u16>> {
-        // scene dimensions
-        let filter = FilterType::CatmullRom;
+    ) -> ImageBuffer<Luma<u16>, Vec<u16>> {
         let (width, height) = (self.image_width, self.image_height);
         // maximum possible entropy in bits = log2(bins³)
-        let max_entropy_bits = (bins.pow(3) as f64).log2();
+        let max_entropy_bits = (bins.pow(3) as f32).log2();
         let bar = ProgressBar::new((width * height) as u64);
 
-        // helper to quantize a Vec3 color into a (r,g,b) bin triple
         fn quantize(c: Vec3, bins: u32) -> (u32, u32, u32) {
-            let f = |x: f64| ((x.clamp(0.0, 1.0) * (bins as f64 - 1.0)).floor()) as u32;
-            (f(c.x()), f(c.y()), f(c.z()))
+            let f = |x: f32| ((x.clamp(0.0, 1.0) * (bins as f32 - 1.0)).floor()) as u32;
+            (f(c.x() as f32), f(c.y() as f32), f(c.z() as f32))
         }
 
-        // compute Shannon entropy (in bits) of a slice of Vec3 samples
-        fn shannon_entropy(samples: &[Vec3], bins: u32) -> f64 {
+        fn shannon_entropy(samples: &[Vec3], bins: u32) -> f32 {
             let mut hist = HashMap::new();
             for &col in samples {
                 *hist.entry(quantize(col, bins)).or_insert(0u32) += 1;
             }
-            let total = samples.len() as f64;
+
+            let total = samples.len() as f32;
+            let log2_total: f32 = <f32 as F32Ext>::log2(total);
+
             hist.values()
                 .map(|&count| {
-                    let p = count as f64 / total;
-                    -p * p.log2()
+                    let p = count as f32 / total;
+                    let e = 31 - count.leading_zeros();
+                    p * (log2_total - e as f32)
                 })
                 .sum()
         }
 
         let heatmap = ImageBuffer::from_fn(width, height, |i, j| {
-            // accumulate entropy over multiple runs
             let mut sum_entropy = 0.0;
             for _ in 0..runs {
-                // 1) initial 16 float‐color samples
                 let mut samples = Vec::with_capacity(32);
                 for _ in 0..16 {
                     let ray = self.get_ray(i, j);
                     samples.push(Self::ray_color(&ray, self.max_depth, world));
                 }
 
-                // 2) two‐half stability check
                 let mid = samples.len() / 2;
                 let h1 = shannon_entropy(&samples[..mid], bins);
                 let h2 = shannon_entropy(&samples[mid..], bins);
 
                 let mut h = h2;
                 if (h2 - h1).abs() > entropy_threshold {
-                    // 3) refine with 16 more samples
                     for _ in 0..16 {
                         let ray = self.get_ray(i, j);
                         samples.push(Self::ray_color(&ray, self.max_depth, world));
@@ -442,22 +476,22 @@ impl Camera {
                 sum_entropy += h;
             }
 
-            // 4) average and normalize to [0,1]
-            let avg = sum_entropy / runs as f64;
+            let avg = sum_entropy / runs as f32;
             let norm = (avg / max_entropy_bits).clamp(0.0, 1.0);
+            let intensity = (norm * u16::MAX as f32).round() as u16;
 
-            // 5) map to 16‐bit grayscale
-            let intensity = (norm * u16::MAX as f64).round() as u16;
             bar.inc(1);
-            Rgb([intensity, intensity, intensity])
+            Luma([intensity])
         });
 
-        let nwidth = width * 8;
-        let nheight = height * 8;
+        let nwidth = width;
+        let nheight = height;
 
         let sigma = 0.8;
-        let blur = blur(&heatmap, sigma);
+        let blur = imageops::fast_blur(&heatmap, sigma);
+        
 
+        let filter = FilterType::Triangle;
         let heatmap_upscale = resize(&blur, nwidth, nheight, filter);
 
 
@@ -489,16 +523,13 @@ impl Camera {
         img
     }
     */
-    /// Renders the full image by sampling each pixel, showing a progress bar.
+
     pub(crate) fn render(&self, world: &dyn Hittable) -> ImageBuffer<Rgb<u16>, Vec<u16>> {
         let total_pixels = (self.image_width as u64) * (self.image_height as u64);
         let bar = ProgressBar::new(total_pixels);
 
         let img = ImageBuffer::from_fn(self.image_width, self.image_height, |i, j| {
-            // 1) accumulate samples
             let linear_color = self.sample_pixel_color(i, j, world);
-
-            // 2) convert to u16 RGB
             let pixel = Self::to_rgb16(linear_color);
 
             bar.inc(1);
@@ -509,8 +540,6 @@ impl Camera {
         img
     }
 
-    /// Shoot `self.samples_per_pixel` rays through pixel (i,j), trace each,
-    /// sum up their colors, then scale by `1 / samples_per_pixel`.
     fn sample_pixel_color(
         &self, 
         i: u32, j: u32, 
@@ -524,15 +553,11 @@ impl Camera {
         accum * self.pixel_samples_scale
     }
 
-    /// Gamma‑correct (√), clamp to [0,0.999], and convert each channel
-    /// into a full‑range `u16`. Returns `Rgb([r, g, b])`.
     fn to_rgb16(linear: Color) -> Rgb<u16> {
-        // 1) gamma‑correct
         let r_gamma = Self::linear_to_gamma(linear.x());
         let g_gamma = Self::linear_to_gamma(linear.y());
         let b_gamma = Self::linear_to_gamma(linear.z());
 
-        // 2) clamp and map to [0..u16::MAX]
         let clamp = |v: f64| {
             let v = Interval::new(0.0, 0.999).clamp(v);
             (v * (u16::MAX as f64)) as u16
@@ -602,6 +627,9 @@ impl Camera {
         let defocus_disk_v = v * defocus_radius;
 
         let max_depth: u32 = 100;
+
+        let adptv_heur_width = image_width / 4;
+        let adptv_heur_height = image_height / 4;
 
         Self {
             aspect_ratio,
