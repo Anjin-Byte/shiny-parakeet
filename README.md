@@ -75,7 +75,3 @@ Goals & Next Steps
 Philosophy
 
 This is not just about rendering pretty pictures — it’s about understanding the math and data structures that underpin modern graphics. I’m exploring each component deeply and experimenting with refactors, abstractions, and acceleration techniques along the way.
-
-⸻
-
-Let me know if you want a shorter version for recruiters or a version that includes build instructions and dependencies.
