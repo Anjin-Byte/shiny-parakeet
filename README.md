@@ -1,20 +1,7 @@
-# Rust Ray Tracer
+# Rust Ray Tracer 🦀🌟
 
 A personal graphics programming project in Rust, inspired by Peter Shirley’s **Ray Tracing in One Weekend**.  
-Serves as both a learning exercise and a foundation for experimenting with rendering techniques and graphics systems from first principles.
-
----
-
-## Table of Contents
-
-1. [Overview](#overview)  
-2. [Key Features](#key-features)  
-3. [Repository Layout](#repository-layout)  
-4. [Rendering Modes](#rendering-modes)  
-   - [Static Render to PNG](#static-render-to-png)  
-   - [Interactive egui Viewer](#interactive-egui-viewer)  
-5. [Goals & Next Steps](#goals--next-steps)  
-6. [Philosophy](#philosophy)  
+Serves as both a learning exercise and a foundation for experimenting with rendering techniques and graphics systems from first principles. 🚀
 
 ---
 
@@ -29,34 +16,22 @@ Supported features:
 - Shadow rays and surface normals  
 - Gamma correction  
 - Anti-aliasing via stochastic sampling  
-- Defocus blur (depth of field)  
-- Progressive rendering with an optional `egui` frontend  
-
+- Defocus blur (depth of field)    
 ---
 
 ## Key Features
 
-- **Book-accurate architecture**  
-  Follows the structure of *Ray Tracing in One Weekend* in Rust.
-
-- **Modular scene description**  
+- **Modular scene description**
   Uses a `Hittable` trait with dynamic dispatch for flexible scene composition.
 
-- **Material abstraction**  
+- **Material abstraction** 
   Clean separation of material behaviors via the `Material` trait.
 
-- **Multisampling camera**  
+- **Multisampling camera**
   Customizable resolution, sample count, and field-of-view.
-
-- **Progressive rendering interface**  
-  Double-buffered image updates using `eframe` + `egui` for interactive previews.
-
-- **Lock-free double buffering**  
-  Atomic front-buffer swapping for safe, efficient frame updates.
-
 ---
 
-## Repository Layout
+## Repository Layout 📂
 
 ```text
 ├── camera.rs               # Ray generation, sampling, DoF, and rendering logic
@@ -77,5 +52,17 @@ Supported features:
 ├── app.rs                  # egui front-end
 └── main.rs                 # CLI and static image renderer
 ````
+## Goals & Next Steps 🎯
+* Add BVH acceleration structure
+* Add textures (checkered, image-based)
+* Add lights 💡 and emissive materials
+* Support volumetrics
+* GPU acceleration (via `wgpu`, CUDA, or Metal) ([cuda_tracer branch](https://github.com/Anjin-Byte/shiny-parakeet/tree/cuda_tracer))
+* Explore adaptive sampling and denoising ([entropy informed adaptive](https://github.com/Anjin-Byte/shiny-parakeet/tree/entropy_adaptive))
+  ([variance informed adaptive](https://github.com/Anjin-Byte/shiny-parakeet/tree/adaptive_sampling))
+
+---
+
+## Philosophy
 
 > This project is not just about rendering pretty pictures—it's about understanding the math and data structures that underpin modern graphics.
