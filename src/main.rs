@@ -366,7 +366,7 @@ fn main() {
         )));
 
 
-        let gpu_scene = GPUScene::try_from(&world).unwrap(); // will panic if world not supported
+        let gpu_scene = GPUScene::try_from(&world).unwrap(); // !! will panic if world not supported
         println!("{:?}", gpu_scene);
 
         let img: ImageBuffer<Rgb<u16>, Vec<u16>> = camera.render(&world);

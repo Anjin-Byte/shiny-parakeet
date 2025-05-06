@@ -8,7 +8,10 @@ use rustacuda::memory::DeviceBuffer;
 
 pub const MAX_MAT_PARAMS: usize = 4;
 
-// C-ABI-safe inline sphere primitive.
+// ------------------------------
+//C-ABI-safe inline primitives
+// ------------------------------
+// sphere primitive.
 #[repr(C)]
 #[derive(DeviceCopy, Copy, Clone, Pod, Zeroable, Debug)]
 pub struct SpherePrimitive {
@@ -17,13 +20,13 @@ pub struct SpherePrimitive {
     pub mat_idx: u32, // index into material buffer
 }
 
-// C-ABI-safe inline material primitive (fixed-size parameter storage).
+// material primitive (fixed-size parameter storage).
 #[repr(C)]
 #[derive(DeviceCopy, Copy, Clone, Pod, Zeroable, Debug)]
 pub struct MaterialPrimitive {
     pub kind: u32,                     // material type tag ( header )
     pub param_count: u32,              // how many slots in `params` are valid ( header )
-    // if header size exceeds 16 bytes need to rethink your padding to keep that header a 
+    // if header size exceeds 16 bytes need to rethink my padding to keep that header a 
     // nice power-of-two or multiple of the cache line size.
     pub _pad: [u32; 2],                
     pub params: [f32; MAX_MAT_PARAMS], // inline parameters
@@ -52,10 +55,9 @@ impl GPUScene {
                     mat_idx,
                 });
 
-                // Build material primitive from its trait object
                 let mat_ref = sphere.mat.as_ref();
                 let (kind, raw_params) = 
-                    match MatKind::try_from(mat_ref).unwrap() { // panics if unsupported material
+                    match MatKind::try_from(mat_ref).unwrap() { // !! panics if unsupported material
                         MatKind::Lambertian(l) => {
                             let c = l.albedo();
                             (0, vec![c.x(), c.y(), c.z()])
