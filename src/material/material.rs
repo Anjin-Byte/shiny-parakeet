@@ -1,8 +1,10 @@
 use crate::geometry::ray::Ray;
 use crate::geometry::vec3::Color;
-use crate::hittables::hittable::HitRecord;
+use crate::hittables::cpu::hittable::HitRecord;
 
-pub trait Material {
+use downcast_rs::Downcast;
+
+pub trait Material: Downcast {
     fn scatter(
         &self,
         r_in: &Ray, 
@@ -13,6 +15,8 @@ pub trait Material {
 
     fn clone_box(&self) -> Box<dyn Material>;
 }
+
+downcast_rs::impl_downcast!(Material);
 
 impl Clone for Box<dyn Material> {
     fn clone(&self) -> Box<dyn Material> {

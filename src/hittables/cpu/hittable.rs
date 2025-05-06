@@ -4,11 +4,13 @@ use crate::geometry::interval::Interval;
 use crate::material::lambertian::Lambertian;
 use crate::material::material::Material;
 
+use downcast_rs::Downcast;
+
 pub struct HitRecord {
     pub p: Point3,
     pub normal: Vec3,
     pub mat: Box<dyn Material>,
-    pub t: f64,
+    pub t: f32,
     pub front_face: bool,
 }
 
@@ -17,7 +19,7 @@ impl HitRecord {
         p: Point3, 
         normal: Vec3, 
         mat: Box<dyn Material>,
-        t: f64, 
+        t: f32, 
         front_face: bool
     ) -> Self {
         Self { 
@@ -31,10 +33,10 @@ impl HitRecord {
 
     pub(crate) fn default() -> Self {
         Self {
-            p: Point3::new(0_f64, 0_f64, 0_f64),
-            normal: Vec3::new(0_f64, 0_f64, 0_f64),
+            p: Point3::new(0_f32, 0_f32, 0_f32),
+            normal: Vec3::new(0_f32, 0_f32, 0_f32),
             mat: Box::new(Lambertian::default()),
-            t: 0_f64,
+            t: 0_f32,
             front_face: false,
         }
     }
@@ -43,16 +45,16 @@ impl HitRecord {
         // Sets the hit record normal vector.
         // NOTE: the parameter `outward_normal` is assumed to have unit length.
 
-        self.front_face = Vec3::dot(&r.direction, &outward_normal) < 0_f64;
+        self.front_face = Vec3::dot(&r.direction, &outward_normal) < 0_f32;
         if self.front_face {
             self.normal = outward_normal.clone();
         } else {
-            self.normal = -1_f64 * outward_normal.clone();
+            self.normal = -1_f32 * outward_normal.clone();
         }
     }
 }
 
-pub trait Hittable {
+pub trait Hittable: Downcast {
     fn hit(
         &self, 
         r: &Ray, 
@@ -60,3 +62,5 @@ pub trait Hittable {
         rec: &mut HitRecord
     ) -> bool;
 }
+
+downcast_rs::impl_downcast!(Hittable);

@@ -1,30 +1,34 @@
 use crate::geometry::ray::Ray;
 use crate::geometry::vec3::{Color, Vec3};
-use crate::hittables::hittable::HitRecord;
+use crate::hittables::cpu::hittable::HitRecord;
 use crate::material::material::Material;
 
 use crate::random_double;
 
 pub struct Dielectric {
-    refraction_index: f64,
+    refraction_index: f32,
 }
 
 impl Default for Dielectric {
     fn default() -> Self {
-        Self { refraction_index: 0_f64 }
+        Self { refraction_index: 0_f32 }
     }
 }
 
 impl Dielectric {
-    pub fn new(refraction_index: f64) -> Self {
+    pub fn new(refraction_index: f32) -> Self {
         Self { refraction_index }
     }
 
-    fn reflectance(cosine: f64, refraction_index: f64) -> f64 {
+    fn reflectance(cosine: f32, refraction_index: f32) -> f32 {
         // Use Schlick's approximation for reflectance.
         let mut r0 = (1.0 - refraction_index) / (1.0 + refraction_index);
         r0 = r0 * r0;
         r0 + (1.0 - r0) * (1.0 - cosine).powi(5)
+    }
+
+    pub fn refraction_index(&self) -> f32 {
+        self.refraction_index
     }
 }
 
@@ -36,7 +40,7 @@ impl Material for Dielectric {
         attenuation: &mut Color, 
         scattered: &mut Ray
     ) -> bool {
-        *attenuation = Color::new(1_f64, 1_f64, 1_f64);
+        *attenuation = Color::new(1_f32, 1_f32, 1_f32);
         let refraction_ratio = if rec.front_face {
             1.0 / self.refraction_index
         } else {
@@ -44,8 +48,8 @@ impl Material for Dielectric {
         };
 
         let unit_direction: Vec3 = Vec3::unit_vector(r_in.direction);
-        let cos_theta: f64 = Vec3::dot(&-unit_direction, &rec.normal).min(1_f64);
-        let sin_theta: f64 = (1.0 - cos_theta * cos_theta).sqrt();
+        let cos_theta: f32 = Vec3::dot(&-unit_direction, &rec.normal).min(1_f32);
+        let sin_theta: f32 = (1.0 - cos_theta * cos_theta).sqrt();
 
         let cannot_refract: bool = refraction_ratio * sin_theta > 1.0;
 

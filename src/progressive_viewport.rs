@@ -6,8 +6,8 @@ use std::sync::mpsc::channel;
 use crate::camera::camera::Camera;
 use crate::geometry::vec3::{Color, Point3, Vec3};
 
-use crate::hittables::sphere::Sphere;
-use crate::hittables::hittable_list::HittableList;
+use crate::hittables::cpu::sphere::Sphere;
+use crate::hittables::cpu::hittable_list::HittableList;
 
 use crate::material::lambertian::Lambertian;
 use crate::material::metal::Metal;
@@ -34,18 +34,18 @@ fn combine_images(img1: &ColorImage, img2: &ColorImage) -> ColorImage {
     }
 }
 
-pub fn run(resolution: u32, camera_samples: u32) {
-    let aspect_ratio: f64 = 16_f64 / 9_f64;
-    let vfov = 20_f64;
-    let defocus_angle = 10_f64;
-    let focus_dist: f64 = 3.4;
+pub fn run(resolution: u32, camera_samples: u32) {/* 
+    let aspect_ratio: f32 = 16_f32 / 9_f32;
+    let vfov = 20_f32;
+    let defocus_angle = 10_f32;
+    let focus_dist: f32 = 3.4;
 
     let camera: Camera = Camera::new( // Force refresh
         defocus_angle,
         focus_dist,
-        Point3::new(-2_f64, 2_f64, 1_f64),
-        Point3::new(0_f64, 0_f64, -1_f64),
-        Vec3::new(0_f64, 1_f64, 0_f64),
+        Point3::new(-2_f32, 2_f32, 1_f32),
+        Point3::new(0_f32, 0_f32, -1_f32),
+        Vec3::new(0_f32, 1_f32, 0_f32),
         vfov, 
         aspect_ratio, 
         resolution, 
@@ -126,9 +126,9 @@ pub fn run(resolution: u32, camera_samples: u32) {
                     RenderCommand::Wake => { paused = false },
                 }
             }
-        }
+        } 
     });
 
 
     let _ = init(tx, reader, 1.74, resolution); 
-}
+*/}

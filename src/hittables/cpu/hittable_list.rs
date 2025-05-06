@@ -22,7 +22,7 @@ impl HittableList {
 impl Hittable for HittableList {
     fn hit(&self, r: &Ray, ray_t: &Interval, rec: &mut HitRecord) -> bool {
         let mut hit_anything: bool = false;
-        let mut closest_so_far: f64 = ray_t.max;
+        let mut closest_so_far: f32 = ray_t.max;
         
 
         for object in self.objects.iter() {
@@ -35,5 +35,19 @@ impl Hittable for HittableList {
         }
 
         hit_anything
+    }
+}
+
+
+impl<'a> IntoIterator for &'a HittableList {
+    type Item = &'a dyn Hittable;
+
+    type IntoIter = std::iter::Map<
+        std::slice::Iter<'a, Box<dyn Hittable>>,
+        fn(&Box<dyn Hittable>) -> &dyn Hittable
+    >;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.objects.iter().map(|b| b.as_ref())
     }
 }

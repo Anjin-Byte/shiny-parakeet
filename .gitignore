@@ -21,3 +21,7 @@ Cargo.lock
 *.pdb
 >>>>>>> origin/main
 *.md
+
+*.cubin
+*.ptx
+*.png

@@ -1,6 +1,6 @@
 use crate::geometry::ray::Ray;
 use crate::geometry::vec3::{Color, Vec3};
-use crate::hittables::hittable::HitRecord;
+use crate::hittables::cpu::hittable::HitRecord;
 use crate::material::material::Material;
 
 pub struct Lambertian {
@@ -18,6 +18,10 @@ impl Lambertian {
         Self {
             albedo,
         }
+    }
+
+    pub fn albedo(&self) -> Color {
+        self.albedo
     }
 }
 
