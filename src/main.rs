@@ -56,8 +56,6 @@ fn random_double_range(min: f32, max: f32) -> f32 {
 }
 
 /* TODO
-Book 1 finished! Congrats! :)
-
 0) Spend time reviewing the mathamatics on paper 
 to prep for your time with book 2 material.
 
@@ -95,29 +93,23 @@ mod tests {
 
     #[test]
     fn test_cuda_add() -> Result<(), Box<dyn Error>> {
-        // — Initialize the CUDA API
         rustacuda::init(CudaFlags::empty())?;
 
-        // — Pick the first device and create a context
         let device = Device::get_device(0)?;
         let _context = Context::create_and_push(
             ContextFlags::MAP_HOST | ContextFlags::SCHED_AUTO,
             device,
         )?;
 
-        // — Load the PTX module
         let ptx = CString::new(include_str!("../resources/add/add.ptx"))?;
         let module = Module::load_from_string(&ptx)?;
 
-        // — Create a non-blocking stream
         let stream = Stream::new(StreamFlags::NON_BLOCKING, None)?;
 
-        // — Allocate three floats on the device
         let mut x = DeviceBox::new(&10.0f32)?;
         let mut y = DeviceBox::new(&20.0f32)?;
         let mut result = DeviceBox::new(&0.0f32)?;
 
-        // — Launch `sum(x, y, result, 1)` on 1 block × 1 thread
         unsafe {
             launch!(module.sum<<<1, 1, 0, stream>>>(
                 x.as_device_ptr(),
@@ -185,7 +177,7 @@ mod tests {
 
         println!("Compile occured");
 
-        // Otherwise, let Cargo know the PTX is an output dependency (optional)
+        // for letting Cargo know the PTX is an output dependency (optional)
         //println!("cargo:rerun-if-changed={}", cu.display());
 
         rustacuda::init(CudaFlags::empty())?;
@@ -208,11 +200,9 @@ mod tests {
         let stream = Stream::new(StreamFlags::NON_BLOCKING, None)?;
 
         println!("kernel start");
-        // Set up frame buffer parameters
         const MAX_X: u32 = 4000;
         const MAX_Y: u32 = 4000;
-        let num_pixels = (MAX_X * MAX_Y * 3) as usize; // 3 floats per pixel (RGB)
-        // Allocate and zero-initialize GPU buffer
+        let num_pixels = (MAX_X * MAX_Y * 3) as usize;
         let mut dev_fb = DeviceBuffer::from_slice(&vec![0u16; num_pixels])?;
 
         let block_x = 8;
@@ -233,7 +223,6 @@ mod tests {
             )?;
         }
     
-        // Wait for GPU work to finish
         stream.synchronize()?;
 
         println!("kernel end - start copy");
@@ -250,13 +239,10 @@ mod tests {
             })
             .collect();
  */
-        // 3) Build your ImageBuffer – from_raw takes (width, height, pixel_data):
-        //    Pixel order in the Vec must be R,G,B,R,G,B, … row by row.
         let img: ImageBuffer<Rgb<u16>, Vec<u16>> =
             ImageBuffer::from_raw(MAX_X, MAX_Y, host_fb)
                 .expect("buffer size does not match dimensions");
 
-        // Now you can save it (for example) as a PNG with 16-bit per channel:
         img.save("test_render.png")?;
 
         Ok(())

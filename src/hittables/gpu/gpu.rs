@@ -15,7 +15,7 @@ pub const MAX_MAT_PARAMS: usize = 4;
 #[repr(C)]
 #[derive(DeviceCopy, Copy, Clone, Pod, Zeroable, Debug)]
 pub struct SpherePrimitive {
-    pub center: [f32; 3], // maps to float3
+    pub center: [f32; 3],
     pub radius: f32,
     pub mat_idx: u32, // index into material buffer
 }
