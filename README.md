@@ -62,7 +62,4 @@ Supported features:
   ([variance informed adaptive](https://github.com/Anjin-Byte/shiny-parakeet/tree/adaptive_sampling))
 
 ---
-
-## Philosophy
-
 > This project is not just about rendering pretty pictures—it's about understanding the math and data structures that underpin modern graphics.
