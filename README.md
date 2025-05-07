@@ -63,3 +63,4 @@ Supported features:
 
 ---
 > This project is not just about rendering pretty pictures—it's about understanding the math and data structures that underpin modern graphics.
+> But, yes, I would love to render some pretty pictures along the way :)
