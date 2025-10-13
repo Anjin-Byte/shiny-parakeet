@@ -355,7 +355,7 @@ fn main() {
         let gpu_scene = GPUScene::try_from(&world).unwrap(); // !! will panic if world not supported
         println!("{:?}", gpu_scene);
 
-        let img: ImageBuffer<Rgb<u16>, Vec<u16>> = camera.render(&world);
+        //let img: ImageBuffer<Rgb<u16>, Vec<u16>> = camera.render(&world);
 
         let img_name = format!(
             "out/{2}/{1:.prec$}_{3}_{0}.png", 
@@ -371,11 +371,11 @@ fn main() {
             fs::create_dir_all(parent).expect("Failed to create directories");
         }
     
-                  
+        /*                   
         if let Err(e) = img.save(&img_name) {
             eprintln!("Failed to save image: {}", e);
         } else {
             println!("Image successfully saved to: {:#?}", path);
-        } 
+        } */ 
     }
 }

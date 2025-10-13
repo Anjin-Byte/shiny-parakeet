@@ -1,7 +1,6 @@
 use super::lambertian::Lambertian;
 use super::metal::Metal;
 use super::dielectric::Dielectric;
-
 use super::material::Material;
 
 pub enum MatKind<'a> {

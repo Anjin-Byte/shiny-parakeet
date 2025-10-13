@@ -57,7 +57,7 @@ impl GPUScene {
 
                 let mat_ref = sphere.mat.as_ref();
                 let (kind, raw_params) = 
-                    match MatKind::try_from(mat_ref).unwrap() { // !! panics if unsupported material
+                    match MatKind::try_from(mat_ref).unwrap() { // unhandled !! panics if unsupported material
                         MatKind::Lambertian(l) => {
                             let c = l.albedo();
                             (0, vec![c.x(), c.y(), c.z()])
@@ -71,7 +71,6 @@ impl GPUScene {
                         }
                     };
 
-                // Inline into fixed-size array
                 let mut params = [0.0f32; MAX_MAT_PARAMS];
                 params[..raw_params.len()].copy_from_slice(&raw_params);
 
